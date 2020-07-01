@@ -15,19 +15,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// 040000 tree 7804129bd06218b72c298139a25698a748d253c6\tpkg/init
 var treeHashRe *regexp.Regexp
 
 func init() {
+	// 040000 tree 7804129bd06218b72c298139a25698a748d253c6\tpkg/init
 	treeHashRe = regexp.MustCompile("^[0-7]{6} [^ ]+ ([0-9a-f]{40})\t.+\n$")
 }
 
-type git struct {
+type Git struct {
 	dir string
 }
 
 // Returns git==nil and no error if the path is not within a git repository
-func newGit(dir string) (*git, error) {
+func NewGit(dir string) (*git, error) {
 	g := &git{dir}
 
 	// Check if dir really is within a git directory
@@ -93,7 +93,7 @@ func (g git) treeHash(pkg, commit string) (string, error) {
 		return "", err
 	}
 	if strings.TrimSpace(out) == pkg {
-		out, err = g.commandStdout(nil, "show", "--format=%T", "-s", commit)
+		out, err = g.commandStdout(nil, "show", "--format=%T", "--no-patch", commit)
 		if err != nil {
 			return "", err
 		}
@@ -106,12 +106,12 @@ func (g git) treeHash(pkg, commit string) (string, error) {
 	}
 
 	if out == "" {
-		return "", fmt.Errorf("Package %s is not in git", pkg)
+		return "", fmt.Errorf("directory %q is not in git", pkg)
 	}
 
 	matches := treeHashRe.FindStringSubmatch(out)
 	if len(matches) != 2 {
-		return "", fmt.Errorf("Unable to parse ls-tree output: %q", out)
+		return "", fmt.Errorf("unable to parse ls-tree output: %q", out)
 	}
 
 	return matches[1], nil
@@ -127,7 +127,7 @@ func (g git) commitHash(commit string) (string, error) {
 }
 
 func (g git) commitTag(commit string) (string, error) {
-	out, err := g.commandStdout(os.Stderr, "tag", "-l", "--points-at", commit)
+	out, err := g.commandStdout(os.Stderr, "tag", "--list", "--points-at", commit)
 	if err != nil {
 		return "", err
 	}
@@ -135,7 +135,7 @@ func (g git) commitTag(commit string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-func (g git) isDirty(pkg, commit string) (bool, error) {
+func (g git) IsWIP(pkg, commit string) (bool, error) {
 	// If it isn't HEAD it can't be dirty
 	if commit != "HEAD" {
 		return false, nil
