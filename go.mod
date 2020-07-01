@@ -1,6 +1,7 @@
 module github.com/errordeveloper/imagine
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/docker/buildx v0.4.1
 	github.com/onsi/gomega v1.7.1
 )
