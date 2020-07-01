@@ -6,26 +6,28 @@ import (
 	"path/filepath"
 
 	"github.com/docker/buildx/bake"
+
+	"github.com/errordeveloper/imagine/pkg/git"
 )
 
 type ImageScope interface {
 	DockerfilePath() string
 	ContextPath() string
-	MakeTag() string
-}
-type ImageTagger interface {
-	MakeTag() string
+	MakeTag() (string, error)
 }
 
 var (
 	_ ImageScope = &ImageScopeRootDir{}
-	//_ ImageScope = &ImageScopeSubDir{}
+	_ ImageScope = &ImageScopeSubDir{}
 )
 
 type ImageScopeRootDir struct {
 	RootDir                string
 	RelativeDockerfilePath string
-	Tagger                 ImageTagger
+
+	BaseBranch    string
+	WithoutSuffix bool
+	Git           git.Git
 }
 
 func (i *ImageScopeRootDir) DockerfilePath() string {
@@ -36,19 +38,89 @@ func (i *ImageScopeRootDir) ContextPath() string {
 	return i.RootDir
 }
 
-func (i *ImageScopeRootDir) MakeTag() string {
-	return i.Tagger.MakeTag()
+func (i *ImageScopeRootDir) MakeTag() (string, error) {
+	commitHash, err := i.Git.CommitHashForHead(true)
+	if err != nil {
+		return "", err
+	}
+
+	if i.WithoutSuffix {
+		return commitHash, nil
+	}
+
+	isDev, err := i.Git.IsDev(i.BaseBranch)
+	if err != nil {
+		return "", err
+	}
+	if isDev {
+		commitHash += "-dev"
+	}
+
+	isWIP, err := i.Git.IsWIP("")
+	if err != nil {
+		return "", err
+	}
+	if isWIP {
+		commitHash += "-wip"
+	}
+
+	// it doens't make sense to use a tag when tree is not clean, or
+	// it is a development branch
+	if semVerTag, _ := i.Git.SemVerTagForHead(false); semVerTag != nil {
+		if !isDev && !isWIP {
+			return "v" + semVerTag.String(), nil
+		}
+		return "", fmt.Errorf("tree is not clean to use a tag")
+	}
+
+	return commitHash, nil
 }
 
 type ImageScopeSubDir struct {
+	RootDir              string
+	RelativeImageDirPath string
+	Dockerfile           string
+
+	BaseBranch    string
+	WithoutSuffix bool
+	Git           git.Git
 }
 
-type ContextType int
+func (i *ImageScopeSubDir) DockerfilePath() string {
+	return filepath.Join(i.RootDir, i.RelativeImageDirPath, i.Dockerfile)
+}
+func (i *ImageScopeSubDir) ContextPath() string {
+	return filepath.Join(i.RootDir, i.RelativeImageDirPath)
+}
 
-const (
-	ContextTypeRootDir ContextType = iota
-	ContextTypeImageDir
-)
+func (i *ImageScopeSubDir) MakeTag() (string, error) {
+	treeHash, err := i.Git.TreeHashForHead(i.RelativeImageDirPath)
+	if err != nil {
+		return "", err
+	}
+
+	if i.WithoutSuffix {
+		return treeHash, nil
+	}
+
+	isDev, err := i.Git.IsDev(i.BaseBranch)
+	if err != nil {
+		return "", err
+	}
+	if isDev {
+		treeHash += "-dev"
+	}
+
+	isWIP, err := i.Git.IsWIP(i.RelativeImageDirPath)
+	if err != nil {
+		return "", err
+	}
+	if isWIP {
+		treeHash += "-wip"
+	}
+
+	return treeHash, nil
+}
 
 const (
 	TestBakeTargetNameSuffix = "-test"
@@ -81,7 +153,7 @@ func (r *ImagineRecipe) newBakeTarget() *bake.Target {
 	return target
 }
 
-func (r *ImagineRecipe) ToBakeManifest(registries ...string) *BakeManifest {
+func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, error) {
 	group := &bake.Group{
 		Targets: []string{r.Name},
 	}
@@ -92,7 +164,11 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) *BakeManifest {
 		r.Name: mainTarget,
 	}
 
-	tag := r.Scope.MakeTag()
+	tag, err := r.Scope.MakeTag()
+	if err != nil {
+		return nil, fmt.Errorf("unable make image tag: %w", err)
+	}
+
 	for _, registry := range registries {
 		registryTag := fmt.Sprintf("%s/%s:%s", registry, r.Name, tag)
 		mainTarget.Tags = append(mainTarget.Tags, registryTag)
@@ -111,9 +187,13 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) *BakeManifest {
 			"default": group,
 		},
 		Target: targets,
-	}
+	}, nil
 }
 
 func (r *ImagineRecipe) ToBakeManifestAsJSON(registries ...string) ([]byte, error) {
-	return json.Marshal(r.ToBakeManifest(registries...))
+	m, err := r.ToBakeManifest(registries...)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(m)
 }
