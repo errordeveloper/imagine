@@ -195,5 +195,5 @@ func (r *ImagineRecipe) ToBakeManifestAsJSON(registries ...string) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(m)
+	return json.MarshalIndent(m, "", "  ")
 }
