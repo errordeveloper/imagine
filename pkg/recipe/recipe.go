@@ -3,6 +3,8 @@ package recipe
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/docker/buildx/bake"
@@ -140,6 +142,8 @@ type bakeTargetMap map[string]*bake.Target
 type BakeManifest struct {
 	Group  bakeGroupMap  `json:"group"`
 	Target bakeTargetMap `json:"target"`
+
+	mainTargetName string
 }
 
 func (r *ImagineRecipe) newBakeTarget() *bake.Target {
@@ -153,6 +157,22 @@ func (r *ImagineRecipe) newBakeTarget() *bake.Target {
 	return target
 }
 
+func (r *ImagineRecipe) RegistryTags(registries ...string) ([]string, error) {
+	registryTags := []string{}
+
+	tag, err := r.Scope.MakeTag()
+	if err != nil {
+		return nil, fmt.Errorf("unable make image tag: %w", err)
+	}
+
+	for _, registry := range registries {
+		registryTag := fmt.Sprintf("%s/%s:%s", registry, r.Name, tag)
+		registryTags = append(registryTags, registryTag)
+	}
+
+	return registryTags, nil
+}
+
 func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, error) {
 	group := &bake.Group{
 		Targets: []string{r.Name},
@@ -164,15 +184,12 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 		r.Name: mainTarget,
 	}
 
-	tag, err := r.Scope.MakeTag()
+	registryTags, err := r.RegistryTags(registries...)
 	if err != nil {
-		return nil, fmt.Errorf("unable make image tag: %w", err)
+		return nil, err
 	}
 
-	for _, registry := range registries {
-		registryTag := fmt.Sprintf("%s/%s:%s", registry, r.Name, tag)
-		mainTarget.Tags = append(mainTarget.Tags, registryTag)
-	}
+	mainTarget.Tags = registryTags
 
 	if r.HasTests {
 		testTarget := r.newBakeTarget()
@@ -183,6 +200,7 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	}
 
 	return &BakeManifest{
+		mainTargetName: r.Name,
 		Group: bakeGroupMap{
 			"default": group,
 		},
@@ -190,10 +208,25 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	}, nil
 }
 
-func (r *ImagineRecipe) ToBakeManifestAsJSON(registries ...string) ([]byte, error) {
-	m, err := r.ToBakeManifest(registries...)
+func (m *BakeManifest) RegistryTags() []string {
+	return m.Target[m.mainTargetName].Tags
+}
+
+func (m *BakeManifest) ToJSON() (string, error) {
+	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return json.MarshalIndent(m, "", "  ")
+	return string(data), nil
+}
+
+func (m *BakeManifest) WriteFile(filename string) error {
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Base(filename), 0755); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filename, data, 0644)
 }

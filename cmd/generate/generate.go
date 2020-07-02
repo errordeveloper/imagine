@@ -83,10 +83,16 @@ func (f *Flags) RunGenerateCmd() error {
 	// TODO implement usefull cheks:
 	// - presence of Dockerfile.dockerignore in the same direcory
 
-	js, err := ir.ToBakeManifestAsJSON(f.Registries...)
+	m, err := ir.ToBakeManifest(f.Registries...)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(js))
+	js, err := m.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(js)
+
 	return nil
 }
