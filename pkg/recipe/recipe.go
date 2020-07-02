@@ -134,6 +134,8 @@ type ImagineRecipe struct {
 	Scope     ImageScope
 	Platforms []string
 	HasTests  bool
+	Push      bool
+	Export    bool
 }
 
 type bakeGroupMap map[string]*bake.Group
@@ -190,6 +192,20 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	}
 
 	mainTarget.Tags = registryTags
+
+	push := (r.Push && len(registries) != 0)
+
+	// this is a slice, but buildx doesn't support multiple outputs
+	// at present (https://github.com/docker/buildx/issues/316)
+	mainTarget.Outputs = []string{
+		fmt.Sprintf("type=image,push=%v", push),
+	}
+
+	if r.Export {
+		mainTarget.Outputs = []string{
+			fmt.Sprintf("type=docker,dest=image-%s.oci", r.Name),
+		}
+	}
 
 	if r.HasTests {
 		testTarget := r.newBakeTarget()

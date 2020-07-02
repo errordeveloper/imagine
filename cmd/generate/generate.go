@@ -16,6 +16,8 @@ type Flags struct {
 	Registries []string
 	Root       bool
 	Test       bool
+	Push       bool
+	Export     bool
 }
 
 const (
@@ -38,17 +40,19 @@ func GenerateCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&flags.Name, "name", "", "", "name of the image")
+	cmd.Flags().StringVar(&flags.Name, "name", "", "name of the image")
 	cmd.MarkFlagRequired("name")
 
-	cmd.Flags().StringVarP(&flags.Dir, "base", "", "", "base directory of image")
+	cmd.Flags().StringVar(&flags.Dir, "base", "", "base directory of image")
 	cmd.MarkFlagRequired("base")
 
-	cmd.Flags().StringArrayVarP(&flags.Registries, "registry", "", []string{}, "registry prefixes to use for tags")
-	cmd.MarkFlagRequired("registry")
+	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
 
-	cmd.Flags().BoolVarP(&flags.Root, "root", "", false, "where to use repo root as build context instead of base direcory")
-	cmd.Flags().BoolVarP(&flags.Test, "test", "", false, "whether to test image first (depends on 'test' build stage being defined)")
+	cmd.Flags().BoolVar(&flags.Root, "root", false, "where to use repo root as build context instead of base direcory")
+	cmd.Flags().BoolVar(&flags.Test, "test", false, "whether to test image first (depends on 'test' build stage being defined)")
+
+	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
+	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
 
 	return cmd
 }
@@ -66,6 +70,8 @@ func (f *Flags) RunGenerateCmd() error {
 	ir := &recipe.ImagineRecipe{
 		Name:     f.Name,
 		HasTests: f.Test,
+		Push:     f.Push,
+		Export:   f.Export,
 	}
 
 	if f.Root {

@@ -105,7 +105,10 @@ func TestWithRootDirScope(t *testing.T) {
 				"platforms": [
 				  "linux/amd64",
 				  "linux/arm64"
-				]
+				],
+				"output": [
+                  "type=image,push=false"
+                ]
 			  },
 			  "image-1-test": {
 				"context": "/go/src/github.com/errordeveloper/imagine",
@@ -356,7 +359,10 @@ func TestWithSubDirScope(t *testing.T) {
 				"platforms": [
 				  "linux/amd64",
 				  "linux/arm64"
-				]
+				],
+				"output": [
+                  "type=image,push=false"
+                ]
 			  },
 			  "image-1-test": {
 				"context": "/go/src/github.com/errordeveloper/imagine/examples/image-1",
@@ -371,5 +377,35 @@ func TestWithSubDirScope(t *testing.T) {
 		  }
 		`
 		g.Expect(js).To(MatchJSON(expected))
+	}
+}
+
+func TestOutputModes(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	ir := &ImagineRecipe{
+		Name: "image-2",
+		Scope: &ImageScopeSubDir{
+			RootDir:              "/go/src/github.com/errordeveloper/imagine",
+			RelativeImageDirPath: "examples/image-1",
+			Dockerfile:           "Dockerfile",
+			WithoutSuffix:        true,
+			Git: &git.FakeRepo{
+				TreeHashForHeadVal: map[string]string{
+					"examples/image-1": "16c315243f8123099501ae2ccd31c00b80c18f91",
+				},
+			},
+		},
+	}
+
+	{
+		ir.HasTests = false
+
+		m, err := ir.ToBakeManifest()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		g.Expect(m.Target).To(HaveLen(1))
+		g.Expect(m.Target).To(HaveKey("image-2"))
+		g.Expect(m.Target["image-2"].Tags).To(HaveLen(0))
 	}
 }
