@@ -1,13 +1,17 @@
-package generate
+package build
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"github.com/errordeveloper/imagine/pkg/buildx"
 	"github.com/errordeveloper/imagine/pkg/git"
+	"github.com/errordeveloper/imagine/pkg/rebuilder"
 	"github.com/errordeveloper/imagine/pkg/recipe"
+	"github.com/errordeveloper/imagine/pkg/registry"
 )
 
 type Flags struct {
@@ -16,6 +20,9 @@ type Flags struct {
 	Registries []string
 	Root       bool
 	Test       bool
+	Builder    string
+	Force      bool
+	Cleanup    bool
 }
 
 const (
@@ -23,20 +30,23 @@ const (
 	dockerfile = "Dockerfile"
 )
 
-func GenerateCmd() *cobra.Command {
+func BuildCmd() *cobra.Command {
 
 	flags := &Flags{}
 
 	cmd := &cobra.Command{
-		Use: "generate",
+		Use: "build",
 		//Args: cobra.NoArgs(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := flags.InitGenerateCmd(cmd); err != nil {
+			if err := flags.InitBuildCmd(cmd); err != nil {
 				return err
 			}
-			return flags.RunGenerateCmd()
+			return flags.RunBuildCmd()
 		},
 	}
+
+	cmd.Flags().StringVarP(&flags.Builder, "builder", "", "", "name of buildx builder")
+	cmd.MarkFlagRequired("builder")
 
 	cmd.Flags().StringVarP(&flags.Name, "name", "", "", "name of the image")
 	cmd.MarkFlagRequired("name")
@@ -49,15 +59,17 @@ func GenerateCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&flags.Root, "root", "", false, "where to use repo root as build context instead of base direcory")
 	cmd.Flags().BoolVarP(&flags.Test, "test", "", false, "whether to test image first (depends on 'test' build stage being defined)")
+	cmd.Flags().BoolVarP(&flags.Force, "force", "", false, "force rebuild the image")
+	cmd.Flags().BoolVarP(&flags.Cleanup, "cleanup", "", false, "cleanup generated manifest file")
 
 	return cmd
 }
 
-func (f *Flags) InitGenerateCmd(cmd *cobra.Command) error {
+func (f *Flags) InitBuildCmd(cmd *cobra.Command) error {
 	return nil
 }
 
-func (f *Flags) RunGenerateCmd() error {
+func (f *Flags) RunBuildCmd() error {
 	g, err := git.NewFromCWD()
 	if err != nil {
 		return err
@@ -98,12 +110,42 @@ func (f *Flags) RunGenerateCmd() error {
 	if err != nil {
 		return err
 	}
-	js, err := m.ToJSON()
+
+	rb := rebuilder.Rebuilder{
+		RegistryAPI: &registry.Registry{},
+	}
+
+	rebuild, reason, err := rb.ShouldRebuild(m)
 	if err != nil {
 		return err
 	}
+	if f.Force {
+		rebuild = true
+		reason = "forcing image rebuild"
+	}
+	if !rebuild {
+		fmt.Println("no need to rebuild")
+		return nil
+	}
+	fmt.Println(reason)
 
-	fmt.Println(js)
+	filename := fmt.Sprintf("buildx-%s.json", f.Name)
+	fmt.Printf("writing manifest to %q\n", filename)
+	if err := m.WriteFile(filename); err != nil {
+		return err
+	}
 
+	bx := buildx.Buildx{
+		Builder: f.Builder,
+	}
+	if err := bx.Bake(filename); err != nil {
+		return err
+	}
+	if f.Cleanup {
+		fmt.Printf("removing %q\n", filename)
+		if err := os.RemoveAll(filename); err != nil {
+			return err
+		}
+	}
 	return nil
 }
