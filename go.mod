@@ -4,6 +4,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/docker/buildx v0.4.1
 	github.com/onsi/gomega v1.7.1
+	github.com/spf13/cobra v0.0.3
 )
 
 // based on https://github.com/docker/buildx/blob/f3111bcbef8ce7e3933711358419fa18294b3daf/go.mod#L69-L73
