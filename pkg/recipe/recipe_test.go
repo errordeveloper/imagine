@@ -81,7 +81,7 @@ func TestWithRootDirScope(t *testing.T) {
 		g.Expect(m.Target["image-1"].Platforms).To(ConsistOf("linux/amd64", "linux/arm64"))
 		g.Expect(m.Target["image-1-test"].Platforms).To(ConsistOf("linux/amd64", "linux/arm64"))
 
-		js, err := ir.ToBakeManifestAsJSON("reg1.example.com/imagine", "reg2.example.org/imagine")
+		js, err := m.ToJSON()
 		g.Expect(err).ToNot(HaveOccurred())
 
 		expected := `
@@ -332,7 +332,7 @@ func TestWithSubDirScope(t *testing.T) {
 		g.Expect(m.Target["image-1"].Platforms).To(ConsistOf("linux/amd64", "linux/arm64"))
 		g.Expect(m.Target["image-1-test"].Platforms).To(ConsistOf("linux/amd64", "linux/arm64"))
 
-		js, err := ir.ToBakeManifestAsJSON("reg1.example.com/imagine", "reg2.example.org/imagine")
+		js, err := m.ToJSON()
 		g.Expect(err).ToNot(HaveOccurred())
 
 		expected := `
