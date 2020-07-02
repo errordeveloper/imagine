@@ -225,7 +225,7 @@ func (m *BakeManifest) WriteFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Base(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
 	return ioutil.WriteFile(filename, data, 0644)
