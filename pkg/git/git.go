@@ -27,7 +27,15 @@ type Git interface {
 
 type GitRepo struct {
 	repoPath string // give path of the repo, can be relative
-	topLevel string // actual path of the repo as seen by git
+	TopLevel string // actual path of the repo as seen by git
+}
+
+func NewFromCWD() (*GitRepo, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return New(wd)
 }
 
 func New(repoPath string) (*GitRepo, error) {
@@ -103,8 +111,8 @@ func (g *GitRepo) isAtTopLevel() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	g.topLevel = strings.TrimSpace(revParseOut)
-	return g.topLevel == wd, nil
+	g.TopLevel = strings.TrimSpace(revParseOut)
+	return g.TopLevel == wd, nil
 }
 
 func (g *GitRepo) TreeHashForHead(path string) (string, error) {
