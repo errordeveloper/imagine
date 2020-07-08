@@ -138,6 +138,50 @@ type ImagineRecipe struct {
 	Export    bool
 }
 
+type RepoManifest struct {
+	Images []ImageManifest `json:"images"`
+}
+
+type ImageManifest struct {
+	Name       string `json:"name"`
+	FullRefs   []string
+	SourceInfo ImageManifestSourceInfo
+}
+
+type ImageManifestSourceInfo struct {
+	Path                  string
+	Commit                string
+	BaseBranch            string
+	BuildBranch           string
+	BaseBranchOriginURL   string
+	CommitWasOnBaseBranch bool
+	CommitURL             string
+}
+
+type FromImage struct {
+	Name               string `json:"name"`
+	FullRef            string `json:"fullRef"`
+	PreferRegistry     string `json:"preferRegistry"`
+	SourceRepoManifest string `json:"sourceRepoManifest"`
+}
+
+type Variants struct {
+	Name string `json:"name"`
+	Args []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"args"`
+}
+
+type ImagineRecipeVariants struct {
+	FromImages []FromImage `json:"fromImages"`
+	Variants   []Variants  `json:"args"`
+}
+
+type ImagineRecipeVariant struct {
+	Name string
+}
+
 type bakeGroupMap map[string]*bake.Group
 type bakeTargetMap map[string]*bake.Target
 
