@@ -5,6 +5,7 @@ import (
 
 	"github.com/errordeveloper/imagine/cmd/build"
 	"github.com/errordeveloper/imagine/cmd/generate"
+	"github.com/errordeveloper/imagine/cmd/image"
 )
 
 type Command = cobra.Command
@@ -14,4 +15,5 @@ func Root(root *Command) {
 	// root.Args = cobra.NoArgs()
 	root.AddCommand(generate.GenerateCmd())
 	root.AddCommand(build.BuildCmd())
+	root.AddCommand(image.ImageCmd())
 }
