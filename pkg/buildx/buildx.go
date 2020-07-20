@@ -39,7 +39,7 @@ func (x *Buildx) Bake(filename string, args ...string) error {
 	cmd := x.mkCmd("bake", append([]string{"--builder", x.Builder, "--file", filename}, args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	fmt.Printf("runing %q\n", cmd.String())
+	fmt.Printf("running %q\n", cmd.String())
 	return cmd.Run()
 }
 

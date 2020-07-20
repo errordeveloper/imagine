@@ -2,6 +2,7 @@ package image
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -58,7 +59,12 @@ func (f *Flags) InitImageCmd(cmd *cobra.Command) error {
 }
 
 func (f *Flags) RunImageCmd() error {
-	g, err := git.NewFromCWD()
+	initialWD, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	g, err := git.New(initialWD)
 	if err != nil {
 		return err
 	}
@@ -73,7 +79,7 @@ func (f *Flags) RunImageCmd() error {
 	if f.Root {
 		ir.Scope = &recipe.ImageScopeRootDir{
 			Git:     g,
-			RootDir: g.TopLevel,
+			BaseDir: initialWD,
 
 			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
 
@@ -83,7 +89,7 @@ func (f *Flags) RunImageCmd() error {
 	} else {
 		ir.Scope = &recipe.ImageScopeSubDir{
 			Git:     g,
-			RootDir: g.TopLevel,
+			BaseDir: initialWD,
 
 			RelativeImageDirPath: f.Dir,
 			Dockerfile:           dockerfile,

@@ -75,7 +75,12 @@ func (f *Flags) InitBuildCmd(cmd *cobra.Command) error {
 }
 
 func (f *Flags) RunBuildCmd() error {
-	g, err := git.NewFromCWD()
+	initialWD, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	g, err := git.New(initialWD)
 	if err != nil {
 		return err
 	}
@@ -85,12 +90,13 @@ func (f *Flags) RunBuildCmd() error {
 		HasTests: f.Test,
 		Push:     f.Push,
 		Export:   f.Export,
+		BaseDir:  initialWD,
 	}
 
 	if f.Root {
 		ir.Scope = &recipe.ImageScopeRootDir{
 			Git:     g,
-			RootDir: g.TopLevel,
+			BaseDir: initialWD,
 
 			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
 
@@ -100,7 +106,7 @@ func (f *Flags) RunBuildCmd() error {
 	} else {
 		ir.Scope = &recipe.ImageScopeSubDir{
 			Git:     g,
-			RootDir: g.TopLevel,
+			BaseDir: initialWD,
 
 			RelativeImageDirPath: f.Dir,
 			Dockerfile:           dockerfile,
@@ -136,7 +142,7 @@ func (f *Flags) RunBuildCmd() error {
 	}
 	fmt.Println(reason)
 
-	filename := fmt.Sprintf("buildx-%s.json", f.Name)
+	filename := filepath.Join(initialWD, fmt.Sprintf("buildx-%s.json", f.Name))
 	fmt.Printf("writing manifest to %q\n", filename)
 	if err := m.WriteFile(filename); err != nil {
 		return err

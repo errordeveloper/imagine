@@ -19,7 +19,7 @@ func TestRebuilder(t *testing.T) {
 		return &recipe.ImagineRecipe{
 			Name: "image-1",
 			Scope: &recipe.ImageScopeRootDir{
-				RootDir:                "/go/src/github.com/errordeveloper/imagine",
+				BaseDir:                "/go/src/github.com/errordeveloper/imagine",
 				RelativeDockerfilePath: "examples/image-1/Dockerfile",
 				Git:                    git,
 			},

@@ -24,7 +24,7 @@ var (
 )
 
 type ImageScopeRootDir struct {
-	RootDir                string
+	BaseDir                string
 	RelativeDockerfilePath string
 
 	BaseBranch    string
@@ -33,11 +33,11 @@ type ImageScopeRootDir struct {
 }
 
 func (i *ImageScopeRootDir) DockerfilePath() string {
-	return filepath.Join(i.RootDir, i.RelativeDockerfilePath)
+	return filepath.Join(i.BaseDir, i.RelativeDockerfilePath)
 }
 
 func (i *ImageScopeRootDir) ContextPath() string {
-	return i.RootDir
+	return i.BaseDir
 }
 
 func (i *ImageScopeRootDir) MakeTag() (string, error) {
@@ -79,7 +79,7 @@ func (i *ImageScopeRootDir) MakeTag() (string, error) {
 }
 
 type ImageScopeSubDir struct {
-	RootDir              string
+	BaseDir              string
 	RelativeImageDirPath string
 	Dockerfile           string
 
@@ -89,10 +89,10 @@ type ImageScopeSubDir struct {
 }
 
 func (i *ImageScopeSubDir) DockerfilePath() string {
-	return filepath.Join(i.RootDir, i.RelativeImageDirPath, i.Dockerfile)
+	return filepath.Join(i.BaseDir, i.RelativeImageDirPath, i.Dockerfile)
 }
 func (i *ImageScopeSubDir) ContextPath() string {
-	return filepath.Join(i.RootDir, i.RelativeImageDirPath)
+	return filepath.Join(i.BaseDir, i.RelativeImageDirPath)
 }
 
 func (i *ImageScopeSubDir) MakeTag() (string, error) {
@@ -130,6 +130,8 @@ const (
 )
 
 type ImagineRecipe struct {
+	BaseDir string
+
 	Name      string
 	Scope     ImageScope
 	Platforms []string
@@ -247,7 +249,8 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 
 	if r.Export {
 		mainTarget.Outputs = []string{
-			fmt.Sprintf("type=docker,dest=image-%s.oci", r.Name),
+			fmt.Sprintf("type=docker,dest=%s",
+				filepath.Join(r.BaseDir, fmt.Sprintf("image-%s.oci", r.Name))),
 		}
 	}
 

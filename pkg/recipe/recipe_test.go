@@ -15,7 +15,7 @@ func TestWithRootDirScope(t *testing.T) {
 	ir := &ImagineRecipe{
 		Name: "image-1",
 		Scope: &ImageScopeRootDir{
-			RootDir:                "/go/src/github.com/errordeveloper/imagine",
+			BaseDir:                "/go/src/github.com/errordeveloper/imagine",
 			RelativeDockerfilePath: "examples/image-1/Dockerfile",
 			Git: &git.FakeRepo{
 				CommitHashForHeadVal: "16c315243fd31c00b80c188123099501ae2ccf91",
@@ -133,7 +133,7 @@ func TestWithRootDirScopeGit(t *testing.T) {
 		return &ImagineRecipe{
 			Name: "image-1",
 			Scope: &ImageScopeRootDir{
-				RootDir:                "/go/src/github.com/errordeveloper/imagine",
+				BaseDir:                "/go/src/github.com/errordeveloper/imagine",
 				RelativeDockerfilePath: "examples/image-1/Dockerfile",
 				Git:                    git,
 			},
@@ -265,7 +265,7 @@ func TestWithSubDirScope(t *testing.T) {
 	ir := &ImagineRecipe{
 		Name: "image-1",
 		Scope: &ImageScopeSubDir{
-			RootDir:              "/go/src/github.com/errordeveloper/imagine",
+			BaseDir:              "/go/src/github.com/errordeveloper/imagine",
 			RelativeImageDirPath: "examples/image-1",
 			Dockerfile:           "Dockerfile",
 			WithoutSuffix:        true,
@@ -386,7 +386,7 @@ func TestOutputModes(t *testing.T) {
 	ir := &ImagineRecipe{
 		Name: "image-2",
 		Scope: &ImageScopeSubDir{
-			RootDir:              "/go/src/github.com/errordeveloper/imagine",
+			BaseDir:              "/go/src/github.com/errordeveloper/imagine",
 			RelativeImageDirPath: "examples/image-1",
 			Dockerfile:           "Dockerfile",
 			WithoutSuffix:        true,
@@ -406,6 +406,75 @@ func TestOutputModes(t *testing.T) {
 
 		g.Expect(m.Target).To(HaveLen(1))
 		g.Expect(m.Target).To(HaveKey("image-2"))
+		g.Expect(m.Target["image-2"].Outputs).To(ConsistOf("type=image,push=false"))
 		g.Expect(m.Target["image-2"].Tags).To(HaveLen(0))
+	}
+
+	{
+		ir.HasTests = true
+
+		m, err := ir.ToBakeManifest()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		g.Expect(m.Target).To(HaveLen(2))
+		g.Expect(m.Target).To(HaveKey("image-2"))
+		g.Expect(m.Target).To(HaveKey("image-2-test"))
+
+		g.Expect(m.Target["image-2"].Outputs).To(ConsistOf("type=image,push=false"))
+		g.Expect(m.Target["image-2"].Tags).To(HaveLen(0))
+		g.Expect(m.Target["image-2-test"].Outputs).To(HaveLen(0))
+		g.Expect(m.Target["image-2-test"].Tags).To(HaveLen(0))
+	}
+
+	{
+		ir.HasTests = true
+
+		m, err := ir.ToBakeManifest("example.com/reg", "example.org/reg")
+		g.Expect(err).ToNot(HaveOccurred())
+
+		g.Expect(m.Target).To(HaveLen(2))
+		g.Expect(m.Target).To(HaveKey("image-2"))
+		g.Expect(m.Target).To(HaveKey("image-2-test"))
+
+		g.Expect(m.Target["image-2"].Outputs).To(ConsistOf("type=image,push=false"))
+
+		g.Expect(m.Target["image-2"].Tags).To(ConsistOf(
+			"example.com/reg/image-2:16c315243f8123099501ae2ccd31c00b80c18f91",
+			"example.org/reg/image-2:16c315243f8123099501ae2ccd31c00b80c18f91",
+		))
+
+		g.Expect(m.Target["image-2-test"].Outputs).To(HaveLen(0))
+		g.Expect(m.Target["image-2-test"].Tags).To(HaveLen(0))
+
+	}
+
+	{
+		ir.Export = true
+		ir.BaseDir = "/tmp"
+
+		m, err := ir.ToBakeManifest()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		g.Expect(m.Target).To(HaveLen(2))
+		g.Expect(m.Target["image-2"].Outputs).To(ConsistOf("type=docker,dest=/tmp/image-image-2.oci"))
+		g.Expect(m.Target["image-2"].Tags).To(HaveLen(0))
+		g.Expect(m.Target["image-2-test"].Outputs).To(HaveLen(0))
+		g.Expect(m.Target["image-2-test"].Tags).To(HaveLen(0))
+	}
+
+	{
+		ir.HasTests = true
+
+		m, err := ir.ToBakeManifest("example.com/reg", "example.org/reg")
+		g.Expect(err).ToNot(HaveOccurred())
+
+		g.Expect(m.Target).To(HaveLen(2))
+		g.Expect(m.Target).To(HaveKey("image-2"))
+		g.Expect(m.Target).To(HaveKey("image-2-test"))
+
+		g.Expect(m.Target["image-2"].Tags).To(ConsistOf(
+			"example.com/reg/image-2:16c315243f8123099501ae2ccd31c00b80c18f91",
+			"example.org/reg/image-2:16c315243f8123099501ae2ccd31c00b80c18f91",
+		))
 	}
 }

@@ -30,14 +30,6 @@ type GitRepo struct {
 	TopLevel string // actual path of the repo as seen by git
 }
 
-func NewFromCWD() (*GitRepo, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	return New(wd)
-}
-
 func New(repoPath string) (*GitRepo, error) {
 	g := &GitRepo{repoPath: repoPath}
 
@@ -54,9 +46,10 @@ func New(repoPath string) (*GitRepo, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("current working directory is not at repo top level")
+		if err := os.Chdir(g.TopLevel); err != nil {
+			return nil, fmt.Errorf("cannot change working directory to repo top level: %w", err)
+		}
 	}
-
 	return g, nil
 }
 
@@ -223,62 +216,4 @@ func (g *GitRepo) IsDev(baseBranch string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-type FakeRepo struct {
-	TreeHashForHeadRoot  string
-	TreeHashForHeadVal   map[string]string
-	CommitHashForHeadVal string
-	TagsForHeadVal       []string
-	IsWIPVal             map[string]bool
-	IsWIPRoot            bool
-	IsDevVal             bool
-}
-
-func (f *FakeRepo) TreeHashForHead(path string) (string, error) {
-	if path == "" {
-		return f.TreeHashForHeadRoot, nil
-	}
-	v, ok := f.TreeHashForHeadVal[path]
-	if !ok {
-		return "", fmt.Errorf("%s not in fake tree", path)
-	}
-	return v, nil
-}
-
-func (f *FakeRepo) CommitHashForHead(short bool) (string, error) {
-	if short {
-		return f.CommitHashForHeadVal[:6], nil
-	}
-	return f.CommitHashForHeadVal, nil
-}
-
-func (f *FakeRepo) TagsForHead() ([]string, error) {
-	if len(f.TagsForHeadVal) == 0 {
-		return nil, fmt.Errorf("no tag in fake repo")
-	}
-	return f.TagsForHeadVal, nil
-}
-
-func (f *FakeRepo) SemVerTagForHead(ignoreParserErrors bool) (*semver.Version, error) {
-	tags, err := f.TagsForHead()
-	if err != nil {
-		return nil, err
-	}
-	return semVerFromTags(ignoreParserErrors, tags)
-}
-
-func (f *FakeRepo) IsWIP(path string) (bool, error) {
-	if path == "" {
-		return f.IsWIPRoot, nil
-	}
-	v, ok := f.IsWIPVal[path]
-	if !ok {
-		return false, fmt.Errorf("%s not in fake tree", path)
-	}
-	return v, nil
-}
-
-func (f *FakeRepo) IsDev(string) (bool, error) {
-	return f.IsDevVal, nil
 }
