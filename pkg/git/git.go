@@ -63,7 +63,7 @@ func (g *GitRepo) commandStdout(stderr io.Writer, args ...string) (string, error
 
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error running %q (workdir: %q): %w", cmd, g.TopLevel, err)
 	}
 	return string(out), nil
 }
