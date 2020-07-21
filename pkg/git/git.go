@@ -6,6 +6,7 @@ package git
 // commit and tree hashes, tags, and WIP status etc
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -73,13 +74,17 @@ func (g *GitRepo) command(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error running %q (workdir: %q): %w", cmd, g.TopLevel, err)
+	}
+	return nil
 }
 
 func (g *GitRepo) isWorkTree() (bool, error) {
 	revParseOut, err := g.commandStdout(nil, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
+		if _, ok := errors.Unwrap(err).(*exec.ExitError); ok {
 			return false, nil
 		}
 		return false, err
@@ -195,13 +200,10 @@ func (g *GitRepo) IsWIP(path string) (bool, error) {
 	if err == nil {
 		return false, nil
 	}
-	switch err.(type) {
-	case *exec.ExitError:
-		// diff-index exits with an error if there are differences
+	if _, ok := errors.Unwrap(err).(*exec.ExitError); ok {
 		return true, nil
-	default:
-		return false, err
 	}
+	return false, err
 }
 
 func (g *GitRepo) IsDev(baseBranch string) (bool, error) {
@@ -212,6 +214,9 @@ func (g *GitRepo) IsDev(baseBranch string) (bool, error) {
 
 	_, err = g.commandStdout(os.Stderr, "merge-base", "--is-ancestor", strings.TrimSpace(revParseOut), baseBranch)
 	if err != nil {
+		if exitErr, ok := errors.Unwrap(err).(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
 		return false, err
 	}
 
