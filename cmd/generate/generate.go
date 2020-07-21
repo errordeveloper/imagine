@@ -12,13 +12,14 @@ import (
 )
 
 type Flags struct {
-	Name       string
-	Dir        string
-	Registries []string
-	Root       bool
-	Test       bool
-	Push       bool
-	Export     bool
+	Name          string
+	Dir           string
+	Registries    []string
+	Root          bool
+	Test          bool
+	Push          bool
+	Export        bool
+	WithoutSuffix bool
 }
 
 const (
@@ -55,6 +56,8 @@ func GenerateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
 	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
 
+	cmd.Flags().BoolVar(&flags.WithoutSuffix, "without-tag-suffix", false, "whether to exclude '-dev' and '-wip' suffix from image tags")
+
 	return cmd
 }
 
@@ -88,7 +91,7 @@ func (f *Flags) RunGenerateCmd() error {
 
 			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
 
-			WithoutSuffix: true,       // TODO: add a flag
+			WithoutSuffix: f.WithoutSuffix,
 			BaseBranch:    baseBranch, // TODO: add a flag
 		}
 	} else {
@@ -99,7 +102,7 @@ func (f *Flags) RunGenerateCmd() error {
 			RelativeImageDirPath: f.Dir,
 			Dockerfile:           dockerfile,
 
-			WithoutSuffix: true,       // TODO: add a flag
+			WithoutSuffix: f.WithoutSuffix,
 			BaseBranch:    baseBranch, // TODO: add a flag
 		}
 	}

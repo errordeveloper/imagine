@@ -12,13 +12,14 @@ import (
 )
 
 type Flags struct {
-	Name       string
-	Dir        string
-	Registries []string
-	Root       bool
-	Test       bool
-	Push       bool
-	Export     bool
+	Name          string
+	Dir           string
+	Registries    []string
+	Root          bool
+	Test          bool
+	Push          bool
+	Export        bool
+	WithoutSuffix bool
 }
 
 const (
@@ -50,6 +51,8 @@ func ImageCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
 
 	cmd.Flags().BoolVar(&flags.Root, "root", false, "where to use repo root as build context instead of base direcory")
+
+	cmd.Flags().BoolVar(&flags.WithoutSuffix, "without-tag-suffix", false, "whether to exclude '-dev' and '-wip' suffix from image tags")
 
 	return cmd
 }
@@ -83,7 +86,7 @@ func (f *Flags) RunImageCmd() error {
 
 			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
 
-			WithoutSuffix: true,       // TODO: add a flag
+			WithoutSuffix: f.WithoutSuffix,
 			BaseBranch:    baseBranch, // TODO: add a flag
 		}
 	} else {
@@ -94,7 +97,7 @@ func (f *Flags) RunImageCmd() error {
 			RelativeImageDirPath: f.Dir,
 			Dockerfile:           dockerfile,
 
-			WithoutSuffix: true,       // TODO: add a flag
+			WithoutSuffix: f.WithoutSuffix,
 			BaseBranch:    baseBranch, // TODO: add a flag
 		}
 	}
