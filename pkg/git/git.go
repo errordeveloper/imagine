@@ -55,7 +55,11 @@ func New(repoPath string) (*GitRepo, error) {
 }
 
 func (g *GitRepo) mkCmd(args ...string) *exec.Cmd {
-	return exec.Command("git", append([]string{"-C", g.repoPath}, args...)...)
+	subCommand := append([]string{"-C", g.repoPath}, args...)
+	if os.Getenv("IMAGINE_DEBUG_GIT") == "true" {
+		fmt.Printf("calling 'git %s'\n", strings.Join(subCommand, " "))
+	}
+	return exec.Command("git", subCommand...)
 }
 
 func (g *GitRepo) commandStdout(stderr io.Writer, args ...string) (string, error) {
