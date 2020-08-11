@@ -8,7 +8,6 @@ package git
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -54,17 +53,24 @@ func New(repoPath string) (*GitRepo, error) {
 	return g, nil
 }
 
+func debug() bool {
+	return os.Getenv("IMAGINE_DEBUG_GIT") == "true"
+}
+
 func (g *GitRepo) mkCmd(args ...string) *exec.Cmd {
 	subCommand := append([]string{"-C", g.repoPath}, args...)
-	if os.Getenv("IMAGINE_DEBUG_GIT") == "true" {
+	if debug() {
 		fmt.Printf("calling 'git %s'\n", strings.Join(subCommand, " "))
 	}
 	return exec.Command("git", subCommand...)
 }
 
-func (g *GitRepo) commandStdout(stderr io.Writer, args ...string) (string, error) {
+func (g *GitRepo) commandStdout(args ...string) (string, error) {
 	cmd := g.mkCmd(args...)
-	cmd.Stderr = stderr
+	cmd.Stderr = nil
+	if debug() {
+		cmd.Stderr = os.Stderr
+	}
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -86,7 +92,7 @@ func (g *GitRepo) command(args ...string) error {
 }
 
 func (g *GitRepo) isWorkTree() (bool, error) {
-	revParseOut, err := g.commandStdout(nil, "rev-parse", "--is-inside-work-tree")
+	revParseOut, err := g.commandStdout("rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		if _, ok := errors.Unwrap(err).(*exec.ExitError); ok {
 			return false, nil
@@ -109,7 +115,7 @@ func (g *GitRepo) isAtTopLevel() (bool, error) {
 		return false, err
 	}
 
-	revParseOut, err := g.commandStdout(nil, "rev-parse", "--show-toplevel")
+	revParseOut, err := g.commandStdout("rev-parse", "--show-toplevel")
 	if err != nil {
 		return false, err
 	}
@@ -118,7 +124,7 @@ func (g *GitRepo) isAtTopLevel() (bool, error) {
 }
 
 func (g *GitRepo) TreeHashForHead(path string) (string, error) {
-	revParseOut, err := g.commandStdout(os.Stderr, "rev-parse", "HEAD:"+path)
+	revParseOut, err := g.commandStdout("rev-parse", "HEAD:"+path)
 	if err != nil {
 		return "", err
 	}
@@ -131,7 +137,7 @@ func (g *GitRepo) CommitHashForHead(short bool) (string, error) {
 	if short {
 		args = []string{"rev-parse", "--short", "HEAD"}
 	}
-	out, err := g.commandStdout(os.Stderr, args...)
+	out, err := g.commandStdout(args...)
 	if err != nil {
 		return "", err
 	}
@@ -141,14 +147,14 @@ func (g *GitRepo) CommitHashForHead(short bool) (string, error) {
 
 func (g *GitRepo) TagsForHead() ([]string, error) {
 	// using name-rev provides clear indication in case there is no tag
-	nameRevOut, err := g.commandStdout(os.Stderr, "name-rev", "--name-only", "--no-undefined", "--tags", "HEAD")
+	nameRevOut, err := g.commandStdout("name-rev", "--name-only", "--no-undefined", "--tags", "HEAD")
 	if err != nil {
 		return nil, err
 	}
 
 	// name-rev returns results in `^0` notation, so to get actual tag
 	// back, we call tag command
-	tagOut, err := g.commandStdout(os.Stderr, "tag", "--sort", "tag", "--points-at", strings.TrimSpace(nameRevOut))
+	tagOut, err := g.commandStdout("tag", "--sort", "tag", "--points-at", strings.TrimSpace(nameRevOut))
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +197,8 @@ func (g *GitRepo) SemVerTagForHead(ignoreParserErrors bool) (*semver.Version, er
 	return semVerFromTags(ignoreParserErrors, tags)
 }
 
+// IsWIP check if any checked-in files had been modified, but it ignores
+// files that new files that had not been checked in
 func (g *GitRepo) IsWIP(path string) (bool, error) {
 	// update cache, otherwise files which have an updated
 	// timestamp but no actual changes are marked as changes
@@ -200,6 +208,9 @@ func (g *GitRepo) IsWIP(path string) (bool, error) {
 		return false, err
 	}
 
+	if path == "" {
+		path = g.TopLevel
+	}
 	err := g.command("diff-index", "--quiet", "HEAD", "--", path)
 	if err == nil {
 		return false, nil
@@ -210,19 +221,20 @@ func (g *GitRepo) IsWIP(path string) (bool, error) {
 	return false, err
 }
 
+// IsDev check if current branch has diverged from the base branch
 func (g *GitRepo) IsDev(baseBranch string) (bool, error) {
-	revParseOut, err := g.commandStdout(os.Stderr, "rev-parse", "HEAD")
+	revParseOut, err := g.commandStdout("rev-parse", "HEAD")
 	if err != nil {
 		return false, err
 	}
 
-	_, err = g.commandStdout(os.Stderr, "merge-base", "--is-ancestor", strings.TrimSpace(revParseOut), baseBranch)
+	_, err = g.commandStdout("merge-base", "--is-ancestor", strings.TrimSpace(revParseOut), baseBranch)
 	if err != nil {
 		if exitErr, ok := errors.Unwrap(err).(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return false, nil
+			return true, nil
 		}
 		return false, err
 	}
 
-	return true, nil
+	return false, nil
 }
