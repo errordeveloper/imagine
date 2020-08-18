@@ -15,14 +15,16 @@ import (
 )
 
 type Flags struct {
-	Name          string
-	Dir           string
-	Registries    []string
-	Root          bool
-	Test          bool
-	Push          bool
-	Export        bool
-	WithoutSuffix bool
+	Name           string
+	Dir            string
+	Dockerfile     string
+	UpstreamBranch string
+	Registries     []string
+	Root           bool
+	Test           bool
+	Push           bool
+	Export         bool
+	WithoutSuffix  bool
 
 	Builder string
 	Force   bool
@@ -30,8 +32,8 @@ type Flags struct {
 }
 
 const (
-	baseBranch = "origin/master"
-	dockerfile = "Dockerfile"
+	defaultUpstreamBranch = "origin/master"
+	defaultDockerfile     = "Dockerfile"
 )
 
 func BuildCmd() *cobra.Command {
@@ -55,8 +57,11 @@ func BuildCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flags.Name, "name", "", "name of the image")
 	cmd.MarkFlagRequired("name")
 
-	cmd.Flags().StringVar(&flags.Dir, "base", "", "base directory of image")
+	cmd.Flags().StringVar(&flags.Dir, "base", "", "base directory of the image")
 	cmd.MarkFlagRequired("base")
+
+	cmd.Flags().StringVar(&flags.Dockerfile, "dockerfile", defaultDockerfile, "base directory of the image")
+	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
 
 	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
 
@@ -101,10 +106,10 @@ func (f *Flags) RunBuildCmd() error {
 			Git:     g,
 			BaseDir: initialWD,
 
-			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
+			RelativeDockerfilePath: filepath.Join(f.Dir, f.Dockerfile),
 
 			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    baseBranch, // TODO: add a flag
+			BaseBranch:    f.UpstreamBranch,
 		}
 	} else {
 		ir.Scope = &recipe.ImageScopeSubDir{
@@ -112,10 +117,10 @@ func (f *Flags) RunBuildCmd() error {
 			BaseDir: initialWD,
 
 			RelativeImageDirPath: f.Dir,
-			Dockerfile:           dockerfile,
+			Dockerfile:           f.Dockerfile,
 
 			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    baseBranch, // TODO: add a flag
+			BaseBranch:    f.UpstreamBranch,
 		}
 	}
 
