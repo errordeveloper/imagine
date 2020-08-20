@@ -1,10 +1,9 @@
-# `imagine` - a higher-level abstraction on top of `docker buildx bake`
+# `imagine` - a high-level container image build tool
 
-It is a slightly opinionated tool for bulding images with `docker buildx bake`,
-it currently implements a few basic command, but is likely to support some form
-of configuration files.
+It is a (slightly) opinionated tool for bulding images with `docker buildx bake`,
+it currently implements a few basic commands.
 
-Things it has opinions about:
+Things `imagine` has opinions about:
 
 - image tagging (based on git)
 - image testing as a separate target
@@ -45,6 +44,11 @@ subdirectory that defines the image.
 
 A rebuild can be force with `--force`, or when either of the suffices (`-dev` and/or `-wip`)
 had been appended to the image.
+
+### Testing
+
+If you have tests defined in `FROM ... as test` section of your `Dockerfile`, you can use
+`--test` flag to run those tests.
 
 ### Examples
 
