@@ -1,7 +1,9 @@
 # `imagine` - a high-level container image build tool
 
-It is a (slightly) opinionated tool for bulding images with `docker buildx bake`,
+It is a (slightly) opinionated tool for bulding images with [`docker buildx bake`][bx],
 it currently implements a few basic commands.
+
+[bx]: https://docs.docker.com/engine/reference/commandline/buildx_bake/
 
 Things `imagine` has opinions about:
 
@@ -9,6 +11,12 @@ Things `imagine` has opinions about:
 - image testing as a separate target
 - registry as a separate notion to image name and tag with multi-registry support
 - by default it will not overwrite existing tags, neither it will rebuild
+
+Historically, `docker build` always needed custom automation logic. The author of `imagine`
+has replicated various implementation between a multitude of projects. This tool was born
+as `docker buildx bake` was released, which offers huge improvements, however it (rightly)
+stops short of being opinionated. So `imagine` offers a few simple feature on top of it
+by generating JSON build manifests.
 
 ## How it works?
 
