@@ -8,6 +8,7 @@ Things `imagine` has opinions about:
 - image tagging (based on git)
 - image testing as a separate target
 - registry as a separate notion to image name and tag with multi-registry support
+- by default it will not overwrite existing tags, neither it will rebuild
 
 ## How it works?
 
