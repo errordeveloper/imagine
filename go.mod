@@ -2,13 +2,13 @@ module github.com/errordeveloper/imagine
 
 require (
 	github.com/Masterminds/semver v1.5.0
-	github.com/docker/buildx v0.4.1
+	github.com/docker/buildx v0.4.2
 	github.com/google/go-containerregistry v0.1.1
 	github.com/onsi/gomega v1.9.0
 	github.com/spf13/cobra v1.0.0
 )
 
-// based on https://github.com/docker/buildx/blob/f3111bcbef8ce7e3933711358419fa18294b3daf/go.mod#L69-L73
+// based on https://github.com/docker/buildx/blob/v0.4.2/go.mod#L69-L73
 
 replace github.com/containerd/containerd => github.com/containerd/containerd v1.3.1-0.20200227195959-4d242818bf55
 
