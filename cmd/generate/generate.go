@@ -7,29 +7,20 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/errordeveloper/imagine/pkg/config"
 	"github.com/errordeveloper/imagine/pkg/git"
 	"github.com/errordeveloper/imagine/pkg/recipe"
 )
 
 type Flags struct {
-	Name          string
-	Dir           string
-	Registries    []string
-	Root          bool
-	Test          bool
-	Push          bool
-	Export        bool
-	WithoutSuffix bool
+	*config.CommonFlags
 }
-
-const (
-	baseBranch = "origin/master"
-	dockerfile = "Dockerfile"
-)
 
 func GenerateCmd() *cobra.Command {
 
-	flags := &Flags{}
+	flags := &Flags{
+		CommonFlags: &config.CommonFlags{},
+	}
 
 	cmd := &cobra.Command{
 		Use: "generate",
@@ -42,21 +33,7 @@ func GenerateCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&flags.Name, "name", "", "name of the image")
-	cmd.MarkFlagRequired("name")
-
-	cmd.Flags().StringVar(&flags.Dir, "base", "", "base directory of image")
-	cmd.MarkFlagRequired("base")
-
-	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
-
-	cmd.Flags().BoolVar(&flags.Root, "root", false, "whether to use repo root as build context instead of base direcory")
-	cmd.Flags().BoolVar(&flags.Test, "test", false, "whether to test image first (depends on 'test' build stage being defined)")
-
-	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
-	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
-
-	cmd.Flags().BoolVar(&flags.WithoutSuffix, "without-tag-suffix", false, "whether to exclude '-dev' and '-wip' suffix from image tags")
+	flags.CommonFlags.Register(cmd)
 
 	return cmd
 }
@@ -89,10 +66,10 @@ func (f *Flags) RunGenerateCmd() error {
 			Git:     g,
 			BaseDir: initialWD,
 
-			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
+			RelativeDockerfilePath: filepath.Join(f.Dir, f.Dockerfile),
 
 			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    baseBranch, // TODO: add a flag
+			BaseBranch:    f.UpstreamBranch,
 		}
 	} else {
 		ir.Scope = &recipe.ImageScopeSubDir{
@@ -100,10 +77,10 @@ func (f *Flags) RunGenerateCmd() error {
 			BaseDir: initialWD,
 
 			RelativeImageDirPath: f.Dir,
-			Dockerfile:           dockerfile,
+			Dockerfile:           f.Dockerfile,
 
 			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    baseBranch, // TODO: add a flag
+			BaseBranch:    f.UpstreamBranch,
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/errordeveloper/imagine/pkg/buildx"
+	"github.com/errordeveloper/imagine/pkg/config"
 	"github.com/errordeveloper/imagine/pkg/git"
 	"github.com/errordeveloper/imagine/pkg/rebuilder"
 	"github.com/errordeveloper/imagine/pkg/recipe"
@@ -15,30 +16,18 @@ import (
 )
 
 type Flags struct {
-	Name           string
-	Dir            string
-	Dockerfile     string
-	UpstreamBranch string
-	Registries     []string
-	Root           bool
-	Test           bool
-	Push           bool
-	Export         bool
-	WithoutSuffix  bool
+	*config.CommonFlags
 
 	Builder string
 	Force   bool
 	Cleanup bool
 }
 
-const (
-	defaultUpstreamBranch = "origin/master"
-	defaultDockerfile     = "Dockerfile"
-)
-
 func BuildCmd() *cobra.Command {
 
-	flags := &Flags{}
+	flags := &Flags{
+		CommonFlags: &config.CommonFlags{},
+	}
 
 	cmd := &cobra.Command{
 		Use: "build",
@@ -51,29 +40,13 @@ func BuildCmd() *cobra.Command {
 		},
 	}
 
+	flags.CommonFlags.Register(cmd)
+
 	cmd.Flags().StringVar(&flags.Builder, "builder", "", "name of buildx builder")
 	cmd.MarkFlagRequired("builder")
 
-	cmd.Flags().StringVar(&flags.Name, "name", "", "name of the image")
-	cmd.MarkFlagRequired("name")
-
-	cmd.Flags().StringVar(&flags.Dir, "base", "", "base directory of the image")
-	cmd.MarkFlagRequired("base")
-
-	cmd.Flags().StringVar(&flags.Dockerfile, "dockerfile", defaultDockerfile, "base directory of the image")
-	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
-
-	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
-
-	cmd.Flags().BoolVar(&flags.Root, "root", false, "whether to use repo root as build context instead of base direcory")
-	cmd.Flags().BoolVar(&flags.Test, "test", false, "whether to test image first (depends on 'test' build stage being defined)")
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
 	cmd.Flags().BoolVar(&flags.Cleanup, "cleanup", false, "cleanup generated manifest file")
-
-	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
-	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
-
-	cmd.Flags().BoolVar(&flags.WithoutSuffix, "without-tag-suffix", false, "whether to exclude '-dev' and '-wip' suffix from image tags")
 
 	return cmd
 }

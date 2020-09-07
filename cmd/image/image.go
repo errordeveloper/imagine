@@ -7,29 +7,20 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/errordeveloper/imagine/pkg/config"
 	"github.com/errordeveloper/imagine/pkg/git"
 	"github.com/errordeveloper/imagine/pkg/recipe"
 )
 
 type Flags struct {
-	Name          string
-	Dir           string
-	Registries    []string
-	Root          bool
-	Test          bool
-	Push          bool
-	Export        bool
-	WithoutSuffix bool
+	*config.BasicFlags
 }
-
-const (
-	baseBranch = "origin/master"
-	dockerfile = "Dockerfile"
-)
 
 func ImageCmd() *cobra.Command {
 
-	flags := &Flags{}
+	flags := &Flags{
+		BasicFlags: &config.BasicFlags{},
+	}
 
 	cmd := &cobra.Command{
 		Use: "image",
@@ -42,17 +33,7 @@ func ImageCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&flags.Name, "name", "", "name of the image")
-	cmd.MarkFlagRequired("name")
-
-	cmd.Flags().StringVar(&flags.Dir, "base", "", "base directory of image")
-	cmd.MarkFlagRequired("base")
-
-	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
-
-	cmd.Flags().BoolVar(&flags.Root, "root", false, "where to use repo root as build context instead of base direcory")
-
-	cmd.Flags().BoolVar(&flags.WithoutSuffix, "without-tag-suffix", false, "whether to exclude '-dev' and '-wip' suffix from image tags")
+	flags.BasicFlags.Register(cmd)
 
 	return cmd
 }
@@ -73,10 +54,7 @@ func (f *Flags) RunImageCmd() error {
 	}
 
 	ir := &recipe.ImagineRecipe{
-		Name:     f.Name,
-		HasTests: f.Test,
-		Push:     f.Push,
-		Export:   f.Export,
+		Name: f.Name,
 	}
 
 	if f.Root {
@@ -84,10 +62,10 @@ func (f *Flags) RunImageCmd() error {
 			Git:     g,
 			BaseDir: initialWD,
 
-			RelativeDockerfilePath: filepath.Join(f.Dir, dockerfile),
+			RelativeDockerfilePath: filepath.Join(f.Dir, f.Dockerfile),
 
 			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    baseBranch, // TODO: add a flag
+			BaseBranch:    f.UpstreamBranch,
 		}
 	} else {
 		ir.Scope = &recipe.ImageScopeSubDir{
@@ -95,10 +73,10 @@ func (f *Flags) RunImageCmd() error {
 			BaseDir: initialWD,
 
 			RelativeImageDirPath: f.Dir,
-			Dockerfile:           dockerfile,
+			Dockerfile:           f.Dockerfile,
 
 			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    baseBranch, // TODO: add a flag
+			BaseBranch:    f.UpstreamBranch,
 		}
 	}
 
