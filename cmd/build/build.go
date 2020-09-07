@@ -140,9 +140,13 @@ func (f *Flags) RunBuildCmd() error {
 	if err != nil {
 		return err
 	}
+	if f.Export {
+		rebuild = true
+		reason = "forcing image rebuild due to export option being set"
+	}
 	if f.Force {
 		rebuild = true
-		reason = "forcing image rebuild"
+		reason = "forcing image rebuild due to force option being set"
 	}
 	if !rebuild {
 		fmt.Println("no need to rebuild")
