@@ -50,7 +50,7 @@ func GenerateCmd() *cobra.Command {
 
 	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
 
-	cmd.Flags().BoolVar(&flags.Root, "root", false, "where to use repo root as build context instead of base direcory")
+	cmd.Flags().BoolVar(&flags.Root, "root", false, "whether to use repo root as build context instead of base direcory")
 	cmd.Flags().BoolVar(&flags.Test, "test", false, "whether to test image first (depends on 'test' build stage being defined)")
 
 	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
