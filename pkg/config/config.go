@@ -7,6 +7,7 @@ import (
 const (
 	defaultUpstreamBranch = "origin/master"
 	defaultDockerfile     = "Dockerfile"
+	defaultPlatform       = "linux/amd64"
 )
 
 type BasicFlags struct {
@@ -22,9 +23,10 @@ type BasicFlags struct {
 type CommonFlags struct {
 	*BasicFlags
 
-	Test   bool
-	Push   bool
-	Export bool
+	Test      bool
+	Push      bool
+	Export    bool
+	Platforms []string
 }
 
 func (f *BasicFlags) Register(cmd *cobra.Command) {
@@ -43,7 +45,6 @@ func (f *BasicFlags) Register(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
 
 	cmd.Flags().StringVar(&f.Dockerfile, "dockerfile", defaultDockerfile, "base directory of the image")
-
 }
 
 func (f *CommonFlags) Register(cmd *cobra.Command) {
@@ -55,4 +56,6 @@ func (f *CommonFlags) Register(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
 
 	cmd.Flags().BoolVar(&f.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
+
+	cmd.Flags().StringArrayVar(&f.Platforms, "platform", []string{defaultPlatform}, "platforms to target")
 }
