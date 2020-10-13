@@ -135,6 +135,7 @@ type ImagineRecipe struct {
 	Name      string
 	Scope     ImageScope
 	Platforms []string
+	Args      map[string]string
 	HasTests  bool
 	Push      bool
 	Export    bool
@@ -199,6 +200,7 @@ func (r *ImagineRecipe) newBakeTarget() *bake.Target {
 		Context:    new(string),
 		Dockerfile: new(string),
 		Platforms:  r.Platforms,
+		Args:       r.Args,
 	}
 	*target.Context = r.Scope.ContextPath()
 	*target.Dockerfile = r.Scope.DockerfilePath()

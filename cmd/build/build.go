@@ -21,6 +21,8 @@ type Flags struct {
 	Builder string
 	Force   bool
 	Cleanup bool
+
+	Args map[string]string
 }
 
 func BuildCmd() *cobra.Command {
@@ -48,6 +50,8 @@ func BuildCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
 	cmd.Flags().BoolVar(&flags.Cleanup, "cleanup", false, "cleanup generated manifest file")
 
+	cmd.Flags().StringToStringVar(&flags.Args, "args", nil, "build args")
+
 	return cmd
 }
 
@@ -72,6 +76,7 @@ func (f *Flags) RunBuildCmd() error {
 		Push:      f.Push,
 		Export:    f.Export,
 		Platforms: f.Platforms,
+		Args:      f.Args,
 		BaseDir:   initialWD,
 	}
 
