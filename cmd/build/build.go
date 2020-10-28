@@ -20,7 +20,7 @@ type Flags struct {
 
 	Builder string
 	Force   bool
-	Cleanup bool
+	Debug   bool
 
 	Args map[string]string
 }
@@ -48,7 +48,7 @@ func BuildCmd() *cobra.Command {
 	cmd.MarkFlagRequired("builder")
 
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
-	cmd.Flags().BoolVar(&flags.Cleanup, "cleanup", false, "cleanup generated manifest file")
+	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 
 	cmd.Flags().StringToStringVar(&flags.Args, "args", nil, "build args")
 
@@ -132,9 +132,10 @@ func (f *Flags) RunBuildCmd() error {
 		return nil
 	}
 	fmt.Println(reason)
-
 	filename := filepath.Join(initialWD, fmt.Sprintf("buildx-%s.json", f.Name))
-	fmt.Printf("writing manifest to %q\n", filename)
+	if f.Debug {
+		fmt.Printf("writing manifest to %q\n", filename)
+	}
 	if err := m.WriteFile(filename); err != nil {
 		return err
 	}
@@ -145,7 +146,7 @@ func (f *Flags) RunBuildCmd() error {
 	if err := bx.Bake(filename); err != nil {
 		return err
 	}
-	if f.Cleanup {
+	if !f.Debug {
 		fmt.Printf("removing %q\n", filename)
 		if err := os.RemoveAll(filename); err != nil {
 			return err

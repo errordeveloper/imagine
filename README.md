@@ -84,7 +84,6 @@ imagine build \
   --registry "quay.io/${username}" \
   --name imagine-alpine-example \
   --base ./examples/alpine \
-  --cleanup
 ```
 
 To build an image that is defined by entier repository, run:
@@ -97,5 +96,4 @@ imagine build \
   --root \
   --base ./ \
   --dockerfile ./examples/imagine/Dockerfile
-  --cleanup
 ```

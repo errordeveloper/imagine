@@ -23,6 +23,7 @@ func builderName() string {
 
 type Buildx struct {
 	Builder string
+	Debug   bool
 }
 
 func (x *Buildx) mkCmd(cmd string, args ...string) *exec.Cmd {
@@ -39,7 +40,9 @@ func (x *Buildx) Bake(filename string, args ...string) error {
 	cmd := x.mkCmd("bake", append([]string{"--builder", x.Builder, "--file", filename}, args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	fmt.Printf("running %q\n", cmd.String())
+	if x.Debug {
+		fmt.Printf("running %q\n", cmd.String())
+	}
 	return cmd.Run()
 }
 
