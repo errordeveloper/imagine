@@ -1,0 +1,51 @@
+name: CI
+on:
+  pull_request:
+    types: [opened, reopened]
+  push:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: Run tests and linters
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v1
+      - uses: docker://docker.io/library/golang:1.15.3@sha256:fb98de3ec034e2a9cda11ab8f13f77403aebd2c3c0b929fa5b847f0edeb6f129
+        name: Run unit tests
+        with:
+          entrypoint: go
+          args: test -v ./...
+      - uses: docker://docker.io/library/golang:1.15.3@sha256:fb98de3ec034e2a9cda11ab8f13f77403aebd2c3c0b929fa5b847f0edeb6f129
+        name: Run go vet
+        with:
+          entrypoint: go
+          args: vet
+  build:
+    needs: test
+    name: Build the binary
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        GOOS: [linux, darwin, windows]
+        GOARCH: [amd64, arm64]
+        exclude:
+          # not yet supported by go
+          - GOOS: darwin
+            GOARCH: arm64
+          - GOOS: windows
+            GOARCH: arm64
+    steps:
+      - uses: actions/checkout@v1
+      - uses: docker://docker.io/library/golang:1.15.3@sha256:fb98de3ec034e2a9cda11ab8f13f77403aebd2c3c0b929fa5b847f0edeb6f129
+        env:
+          GOOS: ${{ matrix.GOOS }}
+          GOARCH: ${{ matrix.GOARCH }}
+        with:
+          entrypoint: go
+          args: build
+      - uses: actions/upload-artifact@v2
+        with:
+          name: imagine-${{ matrix.GOOS }}-${{ matrix.GOARCH }}
+          path: imagine
+
