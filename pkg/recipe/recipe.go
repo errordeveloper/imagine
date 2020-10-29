@@ -139,6 +139,8 @@ type ImagineRecipe struct {
 	HasTests  bool
 	Push      bool
 	Export    bool
+
+	CustomTagSuffix string
 }
 
 type RepoManifest struct {
@@ -213,6 +215,10 @@ func (r *ImagineRecipe) RegistryTags(registries ...string) ([]string, error) {
 	tag, err := r.Scope.MakeTag()
 	if err != nil {
 		return nil, fmt.Errorf("unable make image tag: %w", err)
+	}
+
+	if r.CustomTagSuffix != "" {
+		tag += "-" + r.CustomTagSuffix
 	}
 
 	for _, registry := range registries {
