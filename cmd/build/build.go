@@ -71,13 +71,14 @@ func (f *Flags) RunBuildCmd() error {
 	}
 
 	ir := &recipe.ImagineRecipe{
-		Name:      f.Name,
-		HasTests:  f.Test,
-		Push:      f.Push,
-		Export:    f.Export,
-		Platforms: f.Platforms,
-		Args:      f.Args,
-		BaseDir:   initialWD,
+		Name:            f.Name,
+		HasTests:        f.Test,
+		Push:            f.Push,
+		Export:          f.Export,
+		Platforms:       f.Platforms,
+		Args:            f.Args,
+		BaseDir:         initialWD,
+		CustomTagSuffix: f.CustomTagSuffix,
 	}
 
 	if f.Root {

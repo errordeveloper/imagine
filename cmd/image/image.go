@@ -54,7 +54,8 @@ func (f *Flags) RunImageCmd() error {
 	}
 
 	ir := &recipe.ImagineRecipe{
-		Name: f.Name,
+		Name:            f.Name,
+		CustomTagSuffix: f.CustomTagSuffix,
 	}
 
 	if f.Root {

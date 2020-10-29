@@ -11,13 +11,14 @@ const (
 )
 
 type BasicFlags struct {
-	Name           string
-	Dir            string
-	Registries     []string
-	Root           bool
-	WithoutSuffix  bool
-	UpstreamBranch string
-	Dockerfile     string
+	Name            string
+	Dir             string
+	Registries      []string
+	Root            bool
+	WithoutSuffix   bool
+	UpstreamBranch  string
+	Dockerfile      string
+	CustomTagSuffix string
 }
 
 type CommonFlags struct {
@@ -45,6 +46,8 @@ func (f *BasicFlags) Register(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
 
 	cmd.Flags().StringVar(&f.Dockerfile, "dockerfile", defaultDockerfile, "base directory of the image")
+
+	cmd.Flags().StringVar(&f.CustomTagSuffix, "custom-tag-suffix", "", "append a custom suffix to the image tag")
 }
 
 func (f *CommonFlags) Register(cmd *cobra.Command) {
