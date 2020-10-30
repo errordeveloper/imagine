@@ -16,20 +16,19 @@ import (
 )
 
 type Flags struct {
-	*config.CommonFlags
-
 	Builder string
-	Force   bool
-	Debug   bool
 
-	Args map[string]string
+	Platforms, Registries []string
+	UpstreamBranch        string
+
+	Push, Export, Force, Debug bool
+
+	Config string
 }
 
 func BuildCmd() *cobra.Command {
 
-	flags := &Flags{
-		CommonFlags: &config.CommonFlags{},
-	}
+	flags := &Flags{}
 
 	cmd := &cobra.Command{
 		Use: "build",
@@ -42,15 +41,21 @@ func BuildCmd() *cobra.Command {
 		},
 	}
 
-	flags.CommonFlags.Register(cmd)
-
 	cmd.Flags().StringVar(&flags.Builder, "builder", "", "name of buildx builder")
 	cmd.MarkFlagRequired("builder")
 
+	cmd.Flags().StringVar(&flags.Config, "config", "", "path to build config file")
+	cmd.MarkFlagRequired("config")
+
+	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{"linux/amd64"}, "platforms to target")
+	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
+	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", "origin/master", "upstream branch of the repository")
+
+	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
+	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
+
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
 	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
-
-	cmd.Flags().StringToStringVar(&flags.Args, "args", nil, "build args")
 
 	return cmd
 }
@@ -70,38 +75,53 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 
+	bc, err := config.Load(f.Config)
+	if err != nil {
+		return err
+	}
+
+	if f.Debug {
+
+		fmt.Printf("loaded config: %#v", *bc)
+
+	}
+
+	if len(bc.Spec.Variants) == 0 {
+		if err := f.doBuild(initialWD, bc.Spec.Name, "", bc.Spec.WithBuildInstructions, g); err != nil {
+			return err
+		}
+	} else {
+		for _, v := range bc.Spec.Variants {
+			if err := f.doBuild(initialWD, bc.Spec.Name, v.Name, bc.Spec.WithBuildInstructions, g); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (f *Flags) doBuild(wd, name, suffix string, instructions *config.WithBuildInstructions, g *git.GitRepo) error {
+
 	ir := &recipe.ImagineRecipe{
-		Name:            f.Name,
-		HasTests:        f.Test,
+		Name:            name,
+		HasTests:        *instructions.Test,
 		Push:            f.Push,
 		Export:          f.Export,
 		Platforms:       f.Platforms,
-		Args:            f.Args,
-		BaseDir:         initialWD,
-		CustomTagSuffix: f.CustomTagSuffix,
+		Args:            instructions.Args,
+		BaseDir:         wd,
+		CustomTagSuffix: suffix,
 	}
 
-	if f.Root {
-		ir.Scope = &recipe.ImageScopeRootDir{
-			Git:     g,
-			BaseDir: initialWD,
+	ir.Scope = &recipe.ImageScopeSubDir{
+		Git:     g,
+		BaseDir: wd,
 
-			RelativeDockerfilePath: filepath.Join(f.Dir, f.Dockerfile),
+		RelativeImageDirPath: instructions.Dir,
+		Dockerfile:           instructions.Dockerfile.Path,
 
-			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    f.UpstreamBranch,
-		}
-	} else {
-		ir.Scope = &recipe.ImageScopeSubDir{
-			Git:     g,
-			BaseDir: initialWD,
-
-			RelativeImageDirPath: f.Dir,
-			Dockerfile:           f.Dockerfile,
-
-			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    f.UpstreamBranch,
-		}
+		BaseBranch: f.UpstreamBranch,
 	}
 
 	// TODO implement usefull cheks:
@@ -133,7 +153,7 @@ func (f *Flags) RunBuildCmd() error {
 		return nil
 	}
 	fmt.Println(reason)
-	filename := filepath.Join(initialWD, fmt.Sprintf("buildx-%s.json", f.Name))
+	filename := filepath.Join(wd, fmt.Sprintf("buildx-%s.json", name))
 	if f.Debug {
 		fmt.Printf("writing manifest to %q\n", filename)
 	}
