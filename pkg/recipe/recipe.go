@@ -9,183 +9,74 @@ import (
 
 	"github.com/docker/buildx/bake"
 
+	"github.com/errordeveloper/imagine/pkg/config"
 	"github.com/errordeveloper/imagine/pkg/git"
 )
 
-type ImageScope interface {
-	DockerfilePath() string
-	ContextPath() string
-	MakeTag() (string, error)
-}
-
-var (
-	_ ImageScope = &ImageScopeRootDir{}
-	_ ImageScope = &ImageScopeSubDir{}
-)
-
-type ImageScopeRootDir struct {
-	BaseDir                string
-	RelativeDockerfilePath string
-
-	BaseBranch    string
-	WithoutSuffix bool
-	Git           git.Git
-}
-
-func (i *ImageScopeRootDir) DockerfilePath() string {
-	return filepath.Join(i.BaseDir, i.RelativeDockerfilePath)
-}
-
-func (i *ImageScopeRootDir) ContextPath() string {
-	return i.BaseDir
-}
-
-func (i *ImageScopeRootDir) MakeTag() (string, error) {
-	commitHash, err := i.Git.CommitHashForHead(true)
-	if err != nil {
-		return "", err
-	}
-
-	if i.WithoutSuffix {
-		return commitHash, nil
-	}
-
-	isDev, err := i.Git.IsDev(i.BaseBranch)
-	if err != nil {
-		return "", err
-	}
-	if isDev {
-		commitHash += "-dev"
-	}
-
-	isWIP, err := i.Git.IsWIP("")
-	if err != nil {
-		return "", err
-	}
-	if isWIP {
-		commitHash += "-wip"
-	}
-
-	// it doens't make sense to use a tag when tree is not clean, or
-	// it is a development branch
-	if semVerTag, _ := i.Git.SemVerTagForHead(false); semVerTag != nil {
-		if !isDev && !isWIP {
-			return "v" + semVerTag.String(), nil
-		}
-		return "", fmt.Errorf("tree is not clean to use a tag")
-	}
-
-	return commitHash, nil
-}
-
-type ImageScopeSubDir struct {
-	BaseDir              string
-	RelativeImageDirPath string
-	Dockerfile           string
-
-	BaseBranch    string
-	WithoutSuffix bool
-	Git           git.Git
-}
-
-func (i *ImageScopeSubDir) DockerfilePath() string {
-	return filepath.Join(i.BaseDir, i.RelativeImageDirPath, i.Dockerfile)
-}
-func (i *ImageScopeSubDir) ContextPath() string {
-	return filepath.Join(i.BaseDir, i.RelativeImageDirPath)
-}
-
-func (i *ImageScopeSubDir) MakeTag() (string, error) {
-	treeHash, err := i.Git.TreeHashForHead(i.RelativeImageDirPath)
-	if err != nil {
-		return "", err
-	}
-
-	if i.WithoutSuffix {
-		return treeHash, nil
-	}
-
-	isDev, err := i.Git.IsDev(i.BaseBranch)
-	if err != nil {
-		return "", err
-	}
-	if isDev {
-		treeHash += "-dev"
-	}
-
-	isWIP, err := i.Git.IsWIP(i.RelativeImageDirPath)
-	if err != nil {
-		return "", err
-	}
-	if isWIP {
-		treeHash += "-wip"
-	}
-
-	return treeHash, nil
-}
-
 const (
-	TestBakeTargetNameSuffix = "-test"
-	TestImageBuildTargetName = "test"
+	schemaVersion            = "v1alpha1"
+	labelPrefix              = "com.github.imagine."
+	schemaVersionLabel       = labelPrefix + "schemaVersion"
+	buildConfigDataLabel     = labelPrefix + "buildConfig.Data"
+	buildConfigTreeHashLabel = labelPrefix + "buildConfig.TreeHash"
+	ContextTreeHashLabel     = labelPrefix + "context.TreeHash"
+
+	imagineDir = ".imagine"
 )
 
 type ImagineRecipe struct {
-	BaseDir string
+	WorkDir string
 
-	Name      string
-	Scope     ImageScope
 	Platforms []string
-	Args      map[string]string
-	HasTests  bool
-	Push      bool
-	Export    bool
 
-	CustomTagSuffix string
+	Config struct {
+		Path, Data string
+	}
+
+	Push, Export bool
+
+	*config.BuildSpec
+
+	Git struct {
+		git.Git
+
+		BaseBranch           string
+		BranchedOffSuffix    string
+		WorkInProgressSuffix string
+	}
 }
 
-type RepoManifest struct {
-	Images []ImageManifest `json:"images"`
-}
+// type RepoManifest struct {
+// 	Images []ImageManifest `json:"images"`
+// }
 
-type ImageManifest struct {
-	Name       string `json:"name"`
-	FullRefs   []string
-	SourceInfo ImageManifestSourceInfo
-}
+// type ImageManifest struct {
+// 	Name       string `json:"name"`
+// 	FullRefs   []string
+// 	SourceInfo ImageManifestSourceInfo
+// }
 
-type ImageManifestSourceInfo struct {
-	Path                  string
-	Commit                string
-	BaseBranch            string
-	BuildBranch           string
-	BaseBranchOriginURL   string
-	CommitWasOnBaseBranch bool
-	CommitURL             string
-}
+// type ImageManifestSourceInfo struct {
+// 	Path                  string
+// 	Commit                string
+// 	BaseBranch            string
+// 	BuildBranch           string
+// 	BaseBranchOriginURL   string
+// 	CommitWasOnBaseBranch bool
+// 	CommitURL             string
+// }
 
-type FromImage struct {
-	Name               string `json:"name"`
-	FullRef            string `json:"fullRef"`
-	PreferRegistry     string `json:"preferRegistry"`
-	SourceRepoManifest string `json:"sourceRepoManifest"`
-}
+// type FromImage struct {
+// 	Name               string `json:"name"`
+// 	FullRef            string `json:"fullRef"`
+// 	PreferRegistry     string `json:"preferRegistry"`
+// 	SourceRepoManifest string `json:"sourceRepoManifest"`
+// }
 
-type Variants struct {
-	Name string `json:"name"`
-	Args []struct {
-		Key   string `json:"key"`
-		Value string `json:"value"`
-	} `json:"args"`
-}
-
-type ImagineRecipeVariants struct {
-	FromImages []FromImage `json:"fromImages"`
-	Variants   []Variants  `json:"args"`
-}
-
-type ImagineRecipeVariant struct {
-	Name string
-}
+// type ImagineRecipeVariants struct {
+// 	FromImages []FromImage `json:"fromImages"`
+// 	Variants   []Variants  `json:"args"`
+// }
 
 type bakeGroupMap map[string]*bake.Group
 type bakeTargetMap map[string]*bake.Target
@@ -193,32 +84,86 @@ type bakeTargetMap map[string]*bake.Target
 type BakeManifest struct {
 	Group  bakeGroupMap  `json:"group"`
 	Target bakeTargetMap `json:"target"`
-
-	mainTargetName string
 }
 
-func (r *ImagineRecipe) newBakeTarget() *bake.Target {
-	target := &bake.Target{
-		Context:    new(string),
-		Dockerfile: new(string),
-		Platforms:  r.Platforms,
-		Args:       r.Args,
+func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (string, error) {
+	suffix := ""
+	if r.Git.BranchedOffSuffix != "" {
+		branchedOff, err := r.Git.IsDev(r.Git.BaseBranch)
+		if err != nil {
+			return "", err
+		}
+		if branchedOff {
+			suffix += "-dev"
+		}
 	}
-	*target.Context = r.Scope.ContextPath()
-	*target.Dockerfile = r.Scope.DockerfilePath()
-	return target
+
+	if r.Git.WorkInProgressSuffix != "" {
+		configWIP, err := r.Git.IsWIP(configPath)
+		if err != nil {
+			return "", err
+		}
+		contextWIP, err := r.Git.IsWIP(contextPath)
+		if err != nil {
+			return "", err
+		}
+		if configWIP || contextWIP {
+			suffix += "-wip"
+		}
+	}
+
+	switch r.BuildSpec.TagMode {
+	case "GitTreeHash":
+		configTreeHash, err := r.Git.TreeHashForHead(configPath, true)
+		if err != nil {
+			return "", err
+		}
+
+		contextTreeHash, err := r.Git.TreeHashForHead(contextPath, true)
+		if err != nil {
+			return "", err
+		}
+
+		if variantName == "" {
+			return fmt.Sprintf("%s.%s", configTreeHash, contextTreeHash) + suffix, nil
+		}
+		return fmt.Sprintf("%s.%s.%s", variantName, configTreeHash, contextTreeHash) + suffix, nil
+	case "GitCommitHash":
+		commitHash, err := r.Git.CommitHashForHead(true)
+		if err != nil {
+			return "", err
+		}
+
+		if variantName == "" {
+			return fmt.Sprintf("%s", commitHash) + suffix, nil
+		}
+		return fmt.Sprintf("%s.%s", variantName, commitHash) + suffix, nil
+	case "GitTagSemVer":
+		// it doens't make sense to use a tag when tree is not clean, or
+		// it is a development branch
+		semVerTag, err := r.Git.SemVerTagForHead(false)
+		if err != nil {
+			return "", err
+		}
+		if semVerTag == nil {
+			return "", fmt.Errorf("unexpected error: nil semver")
+		}
+		if suffix != "" {
+			return "", fmt.Errorf("tree must be clean to use a git tag and it must be on given base branch")
+		}
+		return "v" + semVerTag.String(), nil
+
+	default:
+		return "", fmt.Errorf("unknown '.spec.tagMode' (%q)", r.BuildSpec.TagMode)
+	}
 }
 
-func (r *ImagineRecipe) RegistryTags(registries ...string) ([]string, error) {
+func (r *ImagineRecipe) RegistryTags(variantName, variantContextPath string, registries ...string) ([]string, error) {
 	registryTags := []string{}
 
-	tag, err := r.Scope.MakeTag()
+	tag, err := r.GetTag(variantName, r.Config.Path, variantContextPath)
 	if err != nil {
-		return nil, fmt.Errorf("unable make image tag: %w", err)
-	}
-
-	if r.CustomTagSuffix != "" {
-		tag += "-" + r.CustomTagSuffix
+		return nil, fmt.Errorf("unable make image tag for image %q: %w", r.Name, err)
 	}
 
 	for _, registry := range registries {
@@ -229,25 +174,75 @@ func (r *ImagineRecipe) RegistryTags(registries ...string) ([]string, error) {
 	return registryTags, nil
 }
 
-func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, error) {
-	group := &bake.Group{
-		Targets: []string{r.Name},
+func (r *ImagineRecipe) newBakeTarget(buildInstructions *config.WithBuildInstructions) *bake.Target {
+	target := &bake.Target{
+		Context:    new(string),
+		Dockerfile: new(string),
+		Platforms:  r.Platforms,
+		Args:       r.Args,
+		Labels: map[string]string{
+			schemaVersionLabel:   schemaVersion,
+			buildConfigDataLabel: r.Config.Data,
+		},
 	}
 
-	mainTarget := r.newBakeTarget()
+	*target.Context = buildInstructions.ContextPath(r.WorkDir)
+	*target.Dockerfile = buildInstructions.DockerfilePath(r.WorkDir)
 
-	targets := bakeTargetMap{
-		r.Name: mainTarget,
+	return target
+}
+
+const (
+	ImageTestStageName   = "test"
+	DefaultBakeGroup     = "default"
+	BakeTestTargetSuffix = "-test"
+)
+
+func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string, buildInstructions *config.WithBuildInstructions, registries ...string) (bakeTargetMap, []string, error) {
+
+	mainTargetName := imageName
+	if variantName != "" {
+		mainTargetName += "-" + variantName
+	}
+	testTargetName := mainTargetName + BakeTestTargetSuffix
+
+	targets := bakeTargetMap{}
+
+	mainTarget := r.newBakeTarget(buildInstructions)
+
+	push := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
+
+	if !*buildInstructions.Untagged {
+		registryTags, err := r.RegistryTags(variantName, *buildInstructions.Dir, registries...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		mainTarget.Tags = registryTags
 	}
 
-	registryTags, err := r.RegistryTags(registries...)
+	if buildInstructions.Target != nil {
+		mainTarget.Target = buildInstructions.Target
+	}
+
+	for _, secret := range buildInstructions.Secrets {
+		mainTarget.Secrets = append(mainTarget.Secrets, secret.String())
+	}
+
+	configTreeHash, err := r.Git.TreeHashForHead(r.Config.Path, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	mainTarget.Tags = registryTags
+	contextTreeHash, err := r.Git.TreeHashForHead(*buildInstructions.Dir, false)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	push := (r.Push && len(registries) != 0)
+	mainTarget.Labels[buildConfigTreeHashLabel] = configTreeHash
+	mainTarget.Labels[ContextTreeHashLabel] = contextTreeHash
+
+	// TODO: label for HEAD
 
 	// this is a slice, but buildx doesn't support multiple outputs
 	// at present (https://github.com/docker/buildx/issues/316)
@@ -258,29 +253,131 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	if r.Export {
 		mainTarget.Outputs = []string{
 			fmt.Sprintf("type=docker,dest=%s",
-				filepath.Join(r.BaseDir, fmt.Sprintf("image-%s.oci", r.Name))),
+				filepath.Join(buildInstructions.ContextPath(r.WorkDir), fmt.Sprintf("image-%s.oci", r.Name))),
 		}
 	}
 
-	if r.HasTests {
-		testTarget := r.newBakeTarget()
+	targets[mainTargetName] = mainTarget
+
+	if buildInstructions.Test != nil && *buildInstructions.Test {
+		testTarget := r.newBakeTarget(buildInstructions)
+
 		testTarget.Target = new(string)
-		*testTarget.Target = TestImageBuildTargetName
-		targets[r.Name+TestBakeTargetNameSuffix] = testTarget
-		group.Targets = []string{r.Name + TestBakeTargetNameSuffix, r.Name}
+		*testTarget.Target = ImageTestStageName
+
+		targets[testTargetName] = testTarget
+
+		return targets, []string{testTargetName, mainTargetName}, nil
 	}
 
-	return &BakeManifest{
-		mainTargetName: r.Name,
+	return targets, []string{mainTargetName}, nil
+}
+
+func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, error) {
+	if r.BuildSpec == nil {
+		return nil, fmt.Errorf("unexpected error: BuildSpec not set in %T", *r)
+	}
+
+	if len(r.Variants) == 0 {
+		targets, targetNames, err := r.buildVariantToBakeTargets(r.Name, "", r.WithBuildInstructions, registries...)
+		if err != nil {
+			return nil, err
+		}
+
+		return &BakeManifest{
+			Group: bakeGroupMap{
+				DefaultBakeGroup: &bake.Group{
+					Targets: targetNames,
+				},
+			},
+			Target: targets,
+		}, nil
+	}
+
+	manifest := &BakeManifest{
 		Group: bakeGroupMap{
-			"default": group,
+			DefaultBakeGroup: &bake.Group{
+				Targets: []string{},
+			},
 		},
-		Target: targets,
-	}, nil
+		Target: bakeTargetMap{},
+	}
+
+	for _, variant := range r.Variants {
+		targets, targetNames, err := r.buildVariantToBakeTargets(r.Name, variant.Name, variant.With, registries...)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, targetName := range targetNames {
+			manifest.Target[targetName] = targets[targetName]
+		}
+		manifest.Group[DefaultBakeGroup].Targets = append(manifest.Group[DefaultBakeGroup].Targets, targetNames...)
+	}
+	return manifest, nil
+}
+
+func (r *ImagineRecipe) WriteBuildFiles(registries ...string) ([]string, func(), error) {
+	imagineDirPath := filepath.Join(r.WorkDir, imagineDir)
+	if err := os.MkdirAll(imagineDirPath, 0755); err != nil {
+		return nil, func() {}, err
+	}
+	tempDir, err := ioutil.TempDir(imagineDirPath, "build-*")
+	if err != nil {
+		return nil, func() {}, err
+	}
+
+	cleanup := func() {
+		_ = os.RemoveAll(tempDir)
+	}
+
+	filenames := []string{
+		filepath.Join(tempDir, fmt.Sprintf("buildx-%s.json", r.Name)),
+	}
+
+	maybeWriteDockerfile := func(name string, dockerfileBI *config.DockerfileBuildInstructions) error {
+		if dockerfileBI.Body == "" {
+			return nil
+		}
+		dockerfilePath := filepath.Join(tempDir, name)
+		if err := ioutil.WriteFile(dockerfilePath, []byte(dockerfileBI.Body), 0644); err != nil {
+			return err
+		}
+		filenames = append(filenames, dockerfilePath)
+		dockerfileBI.Path = dockerfilePath
+		return nil
+	}
+
+	if err := maybeWriteDockerfile("Dockerfile", r.BuildSpec.Dockerfile); err != nil {
+		cleanup()
+		return nil, func() {}, err
+	}
+	for _, variant := range r.BuildSpec.Variants {
+		if err := maybeWriteDockerfile("Dockerfile."+variant.Name, variant.With.Dockerfile); err != nil {
+			cleanup()
+			return nil, func() {}, err
+		}
+	}
+
+	m, err := r.ToBakeManifest(registries...)
+	if err != nil {
+		return nil, func() {}, err
+	}
+
+	if err := m.WriteFile(filenames[0]); err != nil {
+		cleanup()
+		return nil, func() {}, err
+	}
+
+	return filenames, cleanup, nil
 }
 
 func (m *BakeManifest) RegistryTags() []string {
-	return m.Target[m.mainTargetName].Tags
+	registryTags := []string{}
+	for _, target := range m.Target {
+		registryTags = append(registryTags, target.Tags...)
+	}
+	return registryTags
 }
 
 func (m *BakeManifest) ToJSON() (string, error) {

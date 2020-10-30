@@ -1,5 +1,6 @@
 package generate
 
+/*
 import (
 	"fmt"
 	"os"
@@ -102,3 +103,4 @@ func (f *Flags) RunGenerateCmd() error {
 
 	return nil
 }
+*/

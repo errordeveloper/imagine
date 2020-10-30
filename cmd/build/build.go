@@ -3,7 +3,6 @@ package build
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -16,20 +15,19 @@ import (
 )
 
 type Flags struct {
-	*config.CommonFlags
-
 	Builder string
-	Force   bool
-	Debug   bool
 
-	Args map[string]string
+	Platforms, Registries []string // TODO: make these repo config fields
+	UpstreamBranch        string   // TODO: make this repo config fields
+
+	Push, Export, Force, Debug bool
+
+	Config string
 }
 
 func BuildCmd() *cobra.Command {
 
-	flags := &Flags{
-		CommonFlags: &config.CommonFlags{},
-	}
+	flags := &Flags{}
 
 	cmd := &cobra.Command{
 		Use: "build",
@@ -42,16 +40,28 @@ func BuildCmd() *cobra.Command {
 		},
 	}
 
-	flags.CommonFlags.Register(cmd)
-
 	cmd.Flags().StringVar(&flags.Builder, "builder", "", "name of buildx builder")
 	cmd.MarkFlagRequired("builder")
+
+	cmd.Flags().StringVar(&flags.Config, "config", "", "path to build config file")
+	cmd.MarkFlagRequired("config")
+
+	// TODO: --global-config
+
+	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{"linux/amd64"}, "platforms to target")
+	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
+	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", "origin/master", "upstream branch of the repository")
+
+	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
+	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
 
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
 	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 
-	cmd.Flags().StringToStringVar(&flags.Args, "args", nil, "build args")
-
+	// TODO:
+	// - flag to write summary (tags and variants) to a file
+	//    - json
+	//    - plain text
 	return cmd
 }
 
@@ -70,39 +80,44 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 
+	bc, bcData, err := config.Load(f.Config)
+	if err != nil {
+		return err
+	}
+
+	if f.Debug {
+		fmt.Printf("loaded config: %#v\n", *bc)
+		fmt.Printf(".Spec.WithBuildInstructions: %#v\n", bc.Spec.WithBuildInstructions)
+		for i, variant := range bc.Spec.Variants {
+			fmt.Printf(".Spec.Vairiants[%d]: {Name:%q, With:%#v}\n", i, variant.Name, variant.With)
+		}
+	}
+
+	// TODO:
+	// - [x] new tagging convetion
+	// - [ ] implement metadata labels
+	// - [x] store config as loaded from disk
+	// - [x] rebuilder must check all variants
+	// - [x] compose multi-target recipe directly from the config
+	//    - [x] there should be just one invocation of bake
+	// - [ ] write exact image names at the end of the build
+
 	ir := &recipe.ImagineRecipe{
-		Name:            f.Name,
-		HasTests:        f.Test,
-		Push:            f.Push,
-		Export:          f.Export,
-		Platforms:       f.Platforms,
-		Args:            f.Args,
-		BaseDir:         initialWD,
-		CustomTagSuffix: f.CustomTagSuffix,
+		Push:      f.Push,
+		Export:    f.Export,
+		Platforms: f.Platforms,
+		WorkDir:   initialWD,
+		BuildSpec: &bc.Spec,
 	}
 
-	if f.Root {
-		ir.Scope = &recipe.ImageScopeRootDir{
-			Git:     g,
-			BaseDir: initialWD,
+	ir.Git.Git = g
 
-			RelativeDockerfilePath: filepath.Join(f.Dir, f.Dockerfile),
+	ir.Git.BaseBranch = f.UpstreamBranch
+	ir.Git.BranchedOffSuffix = "dev"    // TODO: make this a flag and repo config field
+	ir.Git.WorkInProgressSuffix = "wip" // TODO: make this a repo and repo config field
 
-			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    f.UpstreamBranch,
-		}
-	} else {
-		ir.Scope = &recipe.ImageScopeSubDir{
-			Git:     g,
-			BaseDir: initialWD,
-
-			RelativeImageDirPath: f.Dir,
-			Dockerfile:           f.Dockerfile,
-
-			WithoutSuffix: f.WithoutSuffix,
-			BaseBranch:    f.UpstreamBranch,
-		}
-	}
+	ir.Config.Data = bcData
+	ir.Config.Path = f.Config
 
 	// TODO implement usefull cheks:
 	// - presence of Dockerfile.dockerignore in the same direcory
@@ -133,24 +148,24 @@ func (f *Flags) RunBuildCmd() error {
 		return nil
 	}
 	fmt.Println(reason)
-	filename := filepath.Join(initialWD, fmt.Sprintf("buildx-%s.json", f.Name))
-	if f.Debug {
-		fmt.Printf("writing manifest to %q\n", filename)
-	}
-	if err := m.WriteFile(filename); err != nil {
+
+	buildFiles, cleanup, err := ir.WriteBuildFiles(f.Registries...)
+	if err != nil {
 		return err
+	}
+
+	if f.Debug {
+		fmt.Printf("writen buildfiles %v\n", buildFiles)
 	}
 
 	bx := buildx.Buildx{
 		Builder: f.Builder,
 	}
-	if err := bx.Bake(filename); err != nil {
+	if err := bx.Bake(buildFiles[0]); err != nil {
 		return err
 	}
 	if !f.Debug {
-		if err := os.RemoveAll(filename); err != nil {
-			return err
-		}
+		cleanup()
 	} else {
 		fmt.Printf("keeping %q for debugging\n", filename)
 	}

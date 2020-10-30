@@ -1,5 +1,6 @@
 package image
 
+/*
 import (
 	"fmt"
 	"os"
@@ -90,3 +91,4 @@ func (f *Flags) RunImageCmd() error {
 	}
 	return nil
 }
+*/

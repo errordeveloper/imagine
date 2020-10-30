@@ -17,8 +17,8 @@ import (
 )
 
 type Git interface {
-	TreeHashForHead(string) (string, error)
-	CommitHashForHead(short bool) (string, error)
+	TreeHashForHead(string, bool) (string, error)
+	CommitHashForHead(bool) (string, error)
 	TagsForHead() ([]string, error)
 	SemVerTagForHead(bool) (*semver.Version, error)
 	IsWIP(string) (bool, error)
@@ -123,8 +123,15 @@ func (g *GitRepo) isAtTopLevel() (bool, error) {
 	return g.TopLevel == wd, nil
 }
 
-func (g *GitRepo) TreeHashForHead(path string) (string, error) {
-	revParseOut, err := g.commandStdout("rev-parse", "HEAD:"+path)
+func makeRevParse(short bool, arg string) []string {
+	if short {
+		return []string{"rev-parse", "--short", arg}
+	}
+	return []string{"rev-parse", arg}
+}
+
+func (g *GitRepo) TreeHashForHead(path string, short bool) (string, error) {
+	revParseOut, err := g.commandStdout(makeRevParse(short, "HEAD:"+path)...)
 	if err != nil {
 		return "", err
 	}
@@ -133,11 +140,7 @@ func (g *GitRepo) TreeHashForHead(path string) (string, error) {
 }
 
 func (g *GitRepo) CommitHashForHead(short bool) (string, error) {
-	args := []string{"rev-parse", "HEAD"}
-	if short {
-		args = []string{"rev-parse", "--short", "HEAD"}
-	}
-	out, err := g.commandStdout(args...)
+	out, err := g.commandStdout(makeRevParse(short, "HEAD")...)
 	if err != nil {
 		return "", err
 	}
