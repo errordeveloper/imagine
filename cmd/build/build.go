@@ -57,6 +57,10 @@ func BuildCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
 	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 
+	// TODO:
+	// - flag to write summary (tags and variants) to a file
+	//    - json
+	//    - plain text
 	return cmd
 }
 
@@ -85,6 +89,15 @@ func (f *Flags) RunBuildCmd() error {
 		fmt.Printf("loaded config: %#v", *bc)
 
 	}
+
+	// TODO:
+	// - new tagging convetion
+	// - implement metadata labels
+	// - store config as load from disk
+	// - rebuilder must check all variants
+	// - compose multi-target recipe directly from the config
+	//    - there should be just one invocation of bake
+	// - write exact image names at the end of the build
 
 	if len(bc.Spec.Variants) == 0 {
 		if err := f.doBuild(initialWD, bc.Spec.Name, "", bc.Spec.WithBuildInstructions, g); err != nil {

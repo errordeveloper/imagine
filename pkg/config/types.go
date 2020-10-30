@@ -10,6 +10,9 @@ type BuildConfig struct {
 	Kind       string `json:"kind"`
 
 	Spec BuildSpec `json:"spec"`
+	// TODO:
+	// - taging modes & behaviour
+	//   - custom dev & wip suffixes
 }
 
 type BuildSpec struct {
@@ -34,5 +37,5 @@ type WithBuildInstructions struct {
 
 type DockerfileBuildInstructions struct {
 	Path string `json:"path"`
-	Body string `json:"body"`
+	Body string `json:"body"` // TODO: this should be written out to a temp file
 }

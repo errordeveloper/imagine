@@ -34,6 +34,7 @@ func fieldValueInvalidErr(filepath, value string) error {
 	return fmt.Errorf("'%s: %s' is not valid", filepath, value)
 }
 
+// TODO: write tests for this
 func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 	if o.APIVersion != apiVersion {
 		return fieldValueInvalidErr(".apiVersion", o.APIVersion)
