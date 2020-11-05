@@ -1,29 +1,32 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 )
 
-func Load(path string) (*BuildConfig, error) {
+func Load(path string) (*BuildConfig, string, error) {
 	obj := &BuildConfig{}
 
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if err := yaml.Unmarshal(data, obj); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if err := obj.ApplyDefaultsAndValidate(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return obj, nil
+	return obj, base64.StdEncoding.EncodeToString(data), nil
 }
 
 func fieldMustBeSetErr(filepath string) error {
@@ -60,6 +63,14 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 			o.Spec.Dockerfile.Path = defaultDockerfile
 		}
 
+		if filepath.IsAbs(o.Spec.Dockerfile.Path) {
+			return fmt.Errorf("absolute path in '.spec.dockerfile.path' is prohibited (%q)", o.Spec.Dockerfile.Path)
+		}
+
+		if strings.HasPrefix(o.Spec.Dockerfile.Path, "..") {
+			return fmt.Errorf("'.spec.dockerfile.path' points outside of '.spec.dir' (%q) - you can try '.spec.dockerfile.body' instead", o.Spec.Dockerfile.Path)
+		}
+
 		if o.Spec.Dir == "" {
 			return fieldMustBeSetErr(".spec.dir")
 		}
@@ -71,15 +82,26 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 	}
 
 	for i, variant := range o.Spec.Variants {
+		p := fmt.Sprintf(".spec.variants[%d]", i)
 		if variant.Name == "" {
-			return fieldMustBeSetErr(fmt.Sprintf(".spec.variants[%d]", i))
+			return fieldMustBeSetErr(p + ".name")
 		}
 		if variant.With == nil {
 			variant.With = o.Spec.WithBuildInstructions
 		} else {
-			if variant.With.Dockerfile.Path == "" && variant.With.Dockerfile.Body == "" {
+			if variant.With.Dockerfile == nil ||
+				(variant.With.Dockerfile.Path == "" && variant.With.Dockerfile.Body == "") {
 				variant.With.Dockerfile = o.Spec.Dockerfile
 			}
+
+			if filepath.IsAbs(variant.With.Dockerfile.Path) {
+				return fmt.Errorf("absolute path in '%s.dockerfile.path' is prohibited (%q)", p, variant.With.Dockerfile.Path)
+			}
+
+			if strings.HasPrefix(variant.With.Dockerfile.Path, "..") {
+				return fmt.Errorf("'%s.dockerfile.path' points outside of '%s.dir' (%q) - you can try '%s.dockerfile.body' instead", p, p, variant.With.Dockerfile.Path, p)
+			}
+
 			if variant.With.Dir == "" {
 				variant.With.Dir = o.Spec.Dir
 			}

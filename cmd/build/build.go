@@ -3,7 +3,6 @@ package build
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -18,8 +17,8 @@ import (
 type Flags struct {
 	Builder string
 
-	Platforms, Registries []string
-	UpstreamBranch        string
+	Platforms, Registries []string // TODO: make these repo config fields
+	UpstreamBranch        string   // TODO: make this repo config fields
 
 	Push, Export, Force, Debug bool
 
@@ -46,6 +45,8 @@ func BuildCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flags.Config, "config", "", "path to build config file")
 	cmd.MarkFlagRequired("config")
+
+	// TODO: --global-config
 
 	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{"linux/amd64"}, "platforms to target")
 	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
@@ -79,63 +80,44 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 
-	bc, err := config.Load(f.Config)
+	bc, bcData, err := config.Load(f.Config)
 	if err != nil {
 		return err
 	}
 
 	if f.Debug {
-
-		fmt.Printf("loaded config: %#v", *bc)
-
+		fmt.Printf("loaded config: %#v\n", *bc)
+		fmt.Printf(".Spec.WithBuildInstructions: %#v\n", bc.Spec.WithBuildInstructions)
+		for i, variant := range bc.Spec.Variants {
+			fmt.Printf(".Spec.Vairiants[%d]: {Name:%q, With:%#v}\n", i, variant.Name, variant.With)
+		}
 	}
 
 	// TODO:
-	// - new tagging convetion
-	// - implement metadata labels
-	// - store config as load from disk
-	// - rebuilder must check all variants
-	// - compose multi-target recipe directly from the config
-	//    - there should be just one invocation of bake
-	// - write exact image names at the end of the build
-
-	if len(bc.Spec.Variants) == 0 {
-		if err := f.doBuild(initialWD, bc.Spec.Name, "", bc.Spec.WithBuildInstructions, g); err != nil {
-			return err
-		}
-	} else {
-		for _, v := range bc.Spec.Variants {
-			if err := f.doBuild(initialWD, bc.Spec.Name, v.Name, bc.Spec.WithBuildInstructions, g); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (f *Flags) doBuild(wd, name, suffix string, instructions *config.WithBuildInstructions, g *git.GitRepo) error {
+	// - [x] new tagging convetion
+	// - [ ] implement metadata labels
+	// - [x] store config as loaded from disk
+	// - [x] rebuilder must check all variants
+	// - [x] compose multi-target recipe directly from the config
+	//    - [x] there should be just one invocation of bake
+	// - [ ] write exact image names at the end of the build
 
 	ir := &recipe.ImagineRecipe{
-		Name:            name,
-		HasTests:        *instructions.Test,
-		Push:            f.Push,
-		Export:          f.Export,
-		Platforms:       f.Platforms,
-		Args:            instructions.Args,
-		BaseDir:         wd,
-		CustomTagSuffix: suffix,
+		Push:      f.Push,
+		Export:    f.Export,
+		Platforms: f.Platforms,
+		WorkDir:   initialWD,
+		BuildSpec: &bc.Spec,
 	}
 
-	ir.Scope = &recipe.ImageScopeSubDir{
-		Git:     g,
-		BaseDir: wd,
+	ir.Git.Git = g
 
-		RelativeImageDirPath: instructions.Dir,
-		Dockerfile:           instructions.Dockerfile.Path,
+	ir.Git.BaseBranch = f.UpstreamBranch
+	ir.Git.BranchedOffSuffix = "dev"    // TODO: make this a flag and repo config field
+	ir.Git.WorkInProgressSuffix = "wip" // TODO: make this a repo and repo config field
 
-		BaseBranch: f.UpstreamBranch,
-	}
+	ir.Config.Data = bcData
+	ir.Config.Path = f.Config
 
 	// TODO implement usefull cheks:
 	// - presence of Dockerfile.dockerignore in the same direcory
@@ -166,24 +148,24 @@ func (f *Flags) doBuild(wd, name, suffix string, instructions *config.WithBuildI
 		return nil
 	}
 	fmt.Println(reason)
-	filename := filepath.Join(wd, fmt.Sprintf("buildx-%s.json", name))
-	if f.Debug {
-		fmt.Printf("writing manifest to %q\n", filename)
-	}
-	if err := m.WriteFile(filename); err != nil {
+
+	buildFiles, cleanup, err := ir.WriteBuildFiles(f.Registries...)
+	if err != nil {
 		return err
+	}
+
+	if f.Debug {
+		fmt.Printf("writen buildfiles %v\n", buildFiles)
 	}
 
 	bx := buildx.Buildx{
 		Builder: f.Builder,
 	}
-	if err := bx.Bake(filename); err != nil {
+	if err := bx.Bake(buildFiles[0]); err != nil {
 		return err
 	}
 	if !f.Debug {
-		if err := os.RemoveAll(filename); err != nil {
-			return err
-		}
+		cleanup()
 	} else {
 		fmt.Printf("keeping %q for debugging\n", filename)
 	}
