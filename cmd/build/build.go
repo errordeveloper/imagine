@@ -148,10 +148,11 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 	if !f.Debug {
-		fmt.Printf("removing %q\n", filename)
 		if err := os.RemoveAll(filename); err != nil {
 			return err
 		}
+	} else {
+		fmt.Printf("keeping %q for debugging\n", filename)
 	}
 	return nil
 }
