@@ -79,6 +79,33 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 			o.Spec.Test = new(bool)
 			*o.Spec.Test = false
 		}
+
+		if o.Spec.Target != nil && *o.Spec.Target == "" {
+			return fieldMustBeSetErr(".spec.target")
+		}
+
+		if o.Spec.Untagged == nil {
+			o.Spec.Untagged = new(bool)
+			*o.Spec.Untagged = false
+		}
+	}
+
+	for i, secret := range o.Spec.Secrets {
+		if secret.Type == "" {
+			o.Spec.Secrets[i].Type = "file"
+		}
+
+		if secret.Type != "file" {
+			return fmt.Errorf("usupported '.spec.secrets[%d].type' (%q) - must be \"file\"", i, secret.Type)
+		}
+
+		if secret.ID != "" {
+			return fieldMustBeSetErr(fmt.Sprintf(".spec.secrets[%d].id", i))
+		}
+
+		if secret.Source != "" {
+			return fieldMustBeSetErr(fmt.Sprintf(".spec.secrets[%d].source", i))
+		}
 	}
 
 	for i, variant := range o.Spec.Variants {
@@ -114,6 +141,40 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 
 			if variant.With.Test == nil {
 				variant.With.Test = o.Spec.Test
+			}
+
+			if variant.With.Target != nil && *variant.With.Target == "" {
+				return fieldMustBeSetErr(p + ".target")
+			}
+
+			if variant.With.Target == nil {
+				variant.With.Target = o.Spec.Target
+			}
+
+			if variant.With.Untagged == nil {
+				variant.With.Untagged = o.Spec.Untagged
+			}
+
+			if len(variant.With.Secrets) == 0 {
+				variant.With.Secrets = o.Spec.Secrets
+			} else {
+				for i, secret := range variant.With.Secrets {
+					if secret.Type == "" {
+						variant.With.Secrets[i].Type = "file"
+					}
+
+					if secret.Type != "file" {
+						return fmt.Errorf("usupported '%s.secrets[%d].type' (%q) - must be \"file\"", p, i, secret.Type)
+					}
+
+					if secret.ID != "" {
+						return fieldMustBeSetErr(fmt.Sprintf("%s.secrets[%d].id", p, i))
+					}
+
+					if secret.Source != "" {
+						return fieldMustBeSetErr(fmt.Sprintf("%s.secrets[%d].source", p, i))
+					}
+				}
 			}
 		}
 	}

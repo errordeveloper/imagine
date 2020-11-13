@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"path/filepath"
 )
 
@@ -35,7 +36,22 @@ type WithBuildInstructions struct {
 	Args map[string]string `json:"args"`
 	Test *bool             `json:"test"`
 
+	Secrets []Secret `json:"secrets"`
+
 	Dockerfile *DockerfileBuildInstructions `json:"dockerfile"`
+
+	Target   *string `json:"target"`
+	Untagged *bool   `json:"untagged"`
+}
+
+type Secret struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Source string `json:"source"`
+}
+
+func (s Secret) String() string {
+	return fmt.Sprintf("id=%s,type=%s,source=%s", s.ID, s.Type, s.Source)
 }
 
 func (i *WithBuildInstructions) ContextPath(workDir string) string {

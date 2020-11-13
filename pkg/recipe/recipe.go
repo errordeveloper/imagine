@@ -210,12 +210,24 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 
 	mainTarget := r.newBakeTarget(buildInstructions)
 
-	registryTags, err := r.RegistryTags(variantName, buildInstructions.Dir, registries...)
-	if err != nil {
-		return nil, nil, err
+	push := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
+
+	if !*buildInstructions.Untagged {
+		registryTags, err := r.RegistryTags(variantName, buildInstructions.Dir, registries...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		mainTarget.Tags = registryTags
 	}
 
-	mainTarget.Tags = registryTags
+	if buildInstructions.Target != nil {
+		mainTarget.Target = buildInstructions.Target
+	}
+
+	for _, secret := range buildInstructions.Secrets {
+		mainTarget.Secrets = append(mainTarget.Secrets, secret.String())
+	}
 
 	configTreeHash, err := r.Git.TreeHashForHead(r.Config.Path, false)
 	if err != nil {
@@ -231,8 +243,6 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	mainTarget.Labels[ContextTreeHashLabel] = contextTreeHash
 
 	// TODO: label for HEAD
-
-	push := (r.Push && len(registries) != 0)
 
 	// this is a slice, but buildx doesn't support multiple outputs
 	// at present (https://github.com/docker/buildx/issues/316)
