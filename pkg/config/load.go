@@ -47,52 +47,60 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 		return fieldValueInvalidErr(".kind", kind)
 	}
 
-	if o.Spec.Name == "" {
+	return o.Spec.ApplyDefaultsAndValidate()
+}
+
+func (o *BuildSpec) ApplyDefaultsAndValidate() error {
+	if o.Name == "" {
 		return fieldMustBeSetErr(".spec.name")
 	}
 
-	if (o.Spec.WithBuildInstructions == nil || o.Spec.Dir == "") && len(o.Spec.Variants) == 0 {
+	if (o.WithBuildInstructions == nil || o.Dir == nil) && len(o.Variants) == 0 {
 		return fmt.Errorf("at least either '.spec.dir' or '.spec.variants' must be set")
 	}
 
-	if o.Spec.WithBuildInstructions != nil {
-		if o.Spec.Dockerfile == nil {
-			o.Spec.Dockerfile = &DockerfileBuildInstructions{}
+	if o.WithBuildInstructions != nil {
+		if o.Dockerfile == nil {
+			o.Dockerfile = &DockerfileBuildInstructions{}
 		}
-		if o.Spec.Dockerfile.Path == "" && o.Spec.Dockerfile.Body == "" {
-			o.Spec.Dockerfile.Path = defaultDockerfile
-		}
-
-		if filepath.IsAbs(o.Spec.Dockerfile.Path) {
-			return fmt.Errorf("absolute path in '.spec.dockerfile.path' is prohibited (%q)", o.Spec.Dockerfile.Path)
+		if o.Dockerfile.Path == "" && o.Dockerfile.Body == "" {
+			o.Dockerfile.Path = defaultDockerfile
 		}
 
-		if strings.HasPrefix(o.Spec.Dockerfile.Path, "..") {
-			return fmt.Errorf("'.spec.dockerfile.path' points outside of '.spec.dir' (%q) - you can try '.spec.dockerfile.body' instead", o.Spec.Dockerfile.Path)
+		if filepath.IsAbs(o.Dockerfile.Path) {
+			return fmt.Errorf("absolute path in '.spec.dockerfile.path' is prohibited (%q)", o.Dockerfile.Path)
 		}
 
-		if o.Spec.Dir == "" {
+		if strings.HasPrefix(o.Dockerfile.Path, "..") {
+			return fmt.Errorf("'.spec.dockerfile.path' points outside of '.spec.dir' (%q) - you can try '.spec.dockerfile.body' instead", o.Dockerfile.Path)
+		}
+
+		if o.Dir == nil {
 			return fieldMustBeSetErr(".spec.dir")
 		}
 
-		if o.Spec.Test == nil {
-			o.Spec.Test = new(bool)
-			*o.Spec.Test = false
+		if o.Test == nil {
+			o.Test = new(bool)
+			*o.Test = false
 		}
 
-		if o.Spec.Target != nil && *o.Spec.Target == "" {
+		if o.Target != nil && *o.Target == "" {
 			return fieldMustBeSetErr(".spec.target")
 		}
 
-		if o.Spec.Untagged == nil {
-			o.Spec.Untagged = new(bool)
-			*o.Spec.Untagged = false
+		if o.Untagged == nil {
+			o.Untagged = new(bool)
+			*o.Untagged = false
 		}
 	}
 
-	for i, secret := range o.Spec.Secrets {
+	if o.TagMode == "" {
+		o.TagMode = "GitTreeHash"
+	}
+
+	for i, secret := range o.Secrets {
 		if secret.Type == "" {
-			o.Spec.Secrets[i].Type = "file"
+			o.Secrets[i].Type = "file"
 		}
 
 		if secret.Type != "file" {
@@ -108,17 +116,17 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 		}
 	}
 
-	for i, variant := range o.Spec.Variants {
+	for i, variant := range o.Variants {
 		p := fmt.Sprintf(".spec.variants[%d]", i)
 		if variant.Name == "" {
 			return fieldMustBeSetErr(p + ".name")
 		}
 		if variant.With == nil {
-			variant.With = o.Spec.WithBuildInstructions
+			variant.With = o.WithBuildInstructions
 		} else {
 			if variant.With.Dockerfile == nil ||
 				(variant.With.Dockerfile.Path == "" && variant.With.Dockerfile.Body == "") {
-				variant.With.Dockerfile = o.Spec.Dockerfile
+				variant.With.Dockerfile = o.Dockerfile
 			}
 
 			if filepath.IsAbs(variant.With.Dockerfile.Path) {
@@ -129,18 +137,18 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 				return fmt.Errorf("'%s.dockerfile.path' points outside of '%s.dir' (%q) - you can try '%s.dockerfile.body' instead", p, p, variant.With.Dockerfile.Path, p)
 			}
 
-			if variant.With.Dir == "" {
-				variant.With.Dir = o.Spec.Dir
+			if variant.With.Dir == nil {
+				variant.With.Dir = o.Dir
 			}
 
-			for k, v := range o.Spec.Args {
+			for k, v := range o.Args {
 				if _, ok := variant.With.Args[k]; !ok {
 					variant.With.Args[k] = v
 				}
 			}
 
 			if variant.With.Test == nil {
-				variant.With.Test = o.Spec.Test
+				variant.With.Test = o.Test
 			}
 
 			if variant.With.Target != nil && *variant.With.Target == "" {
@@ -148,15 +156,15 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 			}
 
 			if variant.With.Target == nil {
-				variant.With.Target = o.Spec.Target
+				variant.With.Target = o.Target
 			}
 
 			if variant.With.Untagged == nil {
-				variant.With.Untagged = o.Spec.Untagged
+				variant.With.Untagged = o.Untagged
 			}
 
 			if len(variant.With.Secrets) == 0 {
-				variant.With.Secrets = o.Spec.Secrets
+				variant.With.Secrets = o.Secrets
 			} else {
 				for i, secret := range variant.With.Secrets {
 					if secret.Type == "" {

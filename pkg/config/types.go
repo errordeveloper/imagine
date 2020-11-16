@@ -32,7 +32,7 @@ type BuildVariant struct {
 }
 
 type WithBuildInstructions struct {
-	Dir  string            `json:"dir"`
+	Dir  *string           `json:"dir"`
 	Args map[string]string `json:"args"`
 	Test *bool             `json:"test"`
 
@@ -55,7 +55,7 @@ func (s Secret) String() string {
 }
 
 func (i *WithBuildInstructions) ContextPath(workDir string) string {
-	return filepath.Join(workDir, i.Dir)
+	return filepath.Join(workDir, *i.Dir)
 }
 
 func (i *WithBuildInstructions) DockerfilePath(workDir string) string {

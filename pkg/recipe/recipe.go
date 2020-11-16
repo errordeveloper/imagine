@@ -213,7 +213,7 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	push := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
 
 	if !*buildInstructions.Untagged {
-		registryTags, err := r.RegistryTags(variantName, buildInstructions.Dir, registries...)
+		registryTags, err := r.RegistryTags(variantName, *buildInstructions.Dir, registries...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -234,7 +234,7 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 		return nil, nil, err
 	}
 
-	contextTreeHash, err := r.Git.TreeHashForHead(buildInstructions.Dir, false)
+	contextTreeHash, err := r.Git.TreeHashForHead(*buildInstructions.Dir, false)
 	if err != nil {
 		return nil, nil, err
 	}
