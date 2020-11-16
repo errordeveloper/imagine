@@ -129,7 +129,7 @@ func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (str
 		}
 		return fmt.Sprintf("%s.%s.%s", variantName, configTreeHash, contextTreeHash) + suffix, nil
 	case "GitCommitHash":
-		commitHash, err := i.Git.CommitHashForHead(true)
+		commitHash, err := r.Git.CommitHashForHead(true)
 		if err != nil {
 			return "", err
 		}
@@ -141,7 +141,7 @@ func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (str
 	case "GitTagSemVer":
 		// it doens't make sense to use a tag when tree is not clean, or
 		// it is a development branch
-		semVerTag, err := i.Git.SemVerTagForHead(false)
+		semVerTag, err := r.Git.SemVerTagForHead(false)
 		if err != nil {
 			return "", err
 		}
@@ -154,7 +154,7 @@ func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (str
 		return "v" + semVerTag.String(), nil
 
 	default:
-		return fmt.Sprntf("unknown '.spec.tagMode' (%q)", r.BuildSpec.TagMode)
+		return "", fmt.Errorf("unknown '.spec.tagMode' (%q)", r.BuildSpec.TagMode)
 	}
 }
 
