@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/json"
+	"github.com/moby/buildkit/solver/errdefs"
+	"github.com/moby/buildkit/solver/pb"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
@@ -29,6 +31,7 @@ var (
 		"csvdecode":              stdlib.CSVDecodeFunc,
 		"coalesce":               stdlib.CoalesceFunc,
 		"coalescelist":           stdlib.CoalesceListFunc,
+		"compact":                stdlib.CompactFunc,
 		"concat":                 stdlib.ConcatFunc,
 		"contains":               stdlib.ContainsFunc,
 		"distinct":               stdlib.DistinctFunc,
@@ -103,7 +106,25 @@ type staticConfig struct {
 	Remain    hcl.Body    `hcl:",remain"`
 }
 
-func ParseHCL(dt []byte, fn string) (*Config, error) {
+func ParseHCL(dt []byte, fn string) (_ *Config, err error) {
+	if strings.HasSuffix(fn, ".json") || strings.HasSuffix(fn, ".hcl") {
+		return parseHCL(dt, fn)
+	}
+	cfg, err := parseHCL(dt, fn+".hcl")
+	if err != nil {
+		cfg2, err2 := parseHCL(dt, fn+".json")
+		if err2 == nil {
+			return cfg2, nil
+		}
+	}
+	return cfg, err
+}
+
+func parseHCL(dt []byte, fn string) (_ *Config, err error) {
+	defer func() {
+		err = formatHCLError(dt, err)
+	}()
+
 	// Decode user defined functions, first parsing as hcl and falling back to
 	// json, returning errors based on the file suffix.
 	file, hcldiags := hclsyntax.ParseConfig(dt, fn, hcl.Pos{Line: 1, Column: 1})
@@ -171,4 +192,38 @@ func ParseHCL(dt []byte, fn string) (*Config, error) {
 		return nil, err
 	}
 	return &c, nil
+}
+
+func formatHCLError(dt []byte, err error) error {
+	if err == nil {
+		return nil
+	}
+	diags, ok := err.(hcl.Diagnostics)
+	if !ok {
+		return err
+	}
+	for _, d := range diags {
+		if d.Severity != hcl.DiagError {
+			continue
+		}
+		if d.Subject != nil {
+			src := errdefs.Source{
+				Info: &pb.SourceInfo{
+					Filename: d.Subject.Filename,
+					Data:     dt,
+				},
+				Ranges: []*pb.Range{toErrRange(d.Subject)},
+			}
+			err = errdefs.WithSource(err, src)
+			break
+		}
+	}
+	return err
+}
+
+func toErrRange(in *hcl.Range) *pb.Range {
+	return &pb.Range{
+		Start: pb.Position{Line: int32(in.Start.Line), Character: int32(in.Start.Column)},
+		End:   pb.Position{Line: int32(in.End.Line), Character: int32(in.End.Column)},
+	}
 }
