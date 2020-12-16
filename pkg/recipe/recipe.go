@@ -176,18 +176,21 @@ func (r *ImagineRecipe) RegistryTags(variantName, variantContextPath string, reg
 
 func (r *ImagineRecipe) newBakeTarget(buildInstructions *config.WithBuildInstructions) *bake.Target {
 	target := &bake.Target{
-		Context:    new(string),
-		Dockerfile: new(string),
-		Platforms:  r.Platforms,
-		Args:       r.Args,
-		Labels: map[string]string{
-			schemaVersionLabel:   schemaVersion,
-			buildConfigDataLabel: r.Config.Data,
-		},
+		Context:   new(string),
+		Platforms: r.Platforms,
+		Args:      r.Args,
 	}
 
 	*target.Context = buildInstructions.ContextPath(r.WorkDir)
-	*target.Dockerfile = buildInstructions.DockerfilePath(r.WorkDir)
+
+	if dockerfilePath := buildInstructions.DockerfilePath(r.WorkDir); dockerfilePath != "" {
+		target.Dockerfile = new(string)
+		*target.Dockerfile = dockerfilePath
+	}
+	if dockerfileBody := buildInstructions.Dockerfile.Body; dockerfileBody != "" {
+		target.DockerfileInline = new(string)
+		*target.DockerfileInline = dockerfileBody
+	}
 
 	return target
 }
@@ -239,8 +242,12 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 		return nil, nil, err
 	}
 
-	mainTarget.Labels[buildConfigTreeHashLabel] = configTreeHash
-	mainTarget.Labels[ContextTreeHashLabel] = contextTreeHash
+	mainTarget.Labels = map[string]string{
+		schemaVersionLabel:       schemaVersion,
+		buildConfigDataLabel:     r.Config.Data,
+		buildConfigTreeHashLabel: configTreeHash,
+		ContextTreeHashLabel:     contextTreeHash,
+	}
 
 	// TODO: label for HEAD
 
@@ -317,59 +324,33 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	return manifest, nil
 }
 
-func (r *ImagineRecipe) WriteBuildFiles(registries ...string) ([]string, func(), error) {
+func (r *ImagineRecipe) WriteManifest(registries ...string) (string, func(), error) {
 	imagineDirPath := filepath.Join(r.WorkDir, imagineDir)
 	if err := os.MkdirAll(imagineDirPath, 0755); err != nil {
-		return nil, func() {}, err
+		return "", func() {}, err
 	}
 	tempDir, err := ioutil.TempDir(imagineDirPath, "build-*")
 	if err != nil {
-		return nil, func() {}, err
+		return "", func() {}, err
 	}
 
 	cleanup := func() {
 		_ = os.RemoveAll(tempDir)
 	}
 
-	filenames := []string{
-		filepath.Join(tempDir, fmt.Sprintf("buildx-%s.json", r.Name)),
-	}
-
-	maybeWriteDockerfile := func(name string, dockerfileBI *config.DockerfileBuildInstructions) error {
-		if dockerfileBI.Body == "" {
-			return nil
-		}
-		dockerfilePath := filepath.Join(tempDir, name)
-		if err := ioutil.WriteFile(dockerfilePath, []byte(dockerfileBI.Body), 0644); err != nil {
-			return err
-		}
-		filenames = append(filenames, dockerfilePath)
-		dockerfileBI.Path = dockerfilePath
-		return nil
-	}
-
-	if err := maybeWriteDockerfile("Dockerfile", r.BuildSpec.Dockerfile); err != nil {
-		cleanup()
-		return nil, func() {}, err
-	}
-	for _, variant := range r.BuildSpec.Variants {
-		if err := maybeWriteDockerfile("Dockerfile."+variant.Name, variant.With.Dockerfile); err != nil {
-			cleanup()
-			return nil, func() {}, err
-		}
-	}
+	manifest := filepath.Join(tempDir, fmt.Sprintf("buildx-%s.json", r.Name))
 
 	m, err := r.ToBakeManifest(registries...)
 	if err != nil {
-		return nil, func() {}, err
+		return "", func() {}, err
 	}
 
-	if err := m.WriteFile(filenames[0]); err != nil {
+	if err := m.WriteFile(manifest); err != nil {
 		cleanup()
-		return nil, func() {}, err
+		return "", func() {}, err
 	}
 
-	return filenames, cleanup, nil
+	return manifest, cleanup, nil
 }
 
 func (m *BakeManifest) RegistryTags() []string {
