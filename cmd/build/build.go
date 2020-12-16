@@ -149,25 +149,25 @@ func (f *Flags) RunBuildCmd() error {
 	}
 	fmt.Println(reason)
 
-	buildFiles, cleanup, err := ir.WriteBuildFiles(f.Registries...)
+	manifest, cleanup, err := ir.WriteManifest(f.Registries...)
 	if err != nil {
 		return err
 	}
 
 	if f.Debug {
-		fmt.Printf("writen buildfiles %v\n", buildFiles)
+		fmt.Printf("writen manifest %v\n", manifest)
 	}
 
 	bx := buildx.Buildx{
 		Builder: f.Builder,
 	}
-	if err := bx.Bake(buildFiles[0]); err != nil {
+	if err := bx.Bake(manifest); err != nil {
 		return err
 	}
 	if !f.Debug {
 		cleanup()
 	} else {
-		fmt.Printf("keeping %q for debugging\n", filename)
+		fmt.Printf("keeping %q for debugging\n", manifest)
 	}
 	return nil
 }

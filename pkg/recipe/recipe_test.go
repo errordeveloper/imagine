@@ -46,6 +46,9 @@ func TestWithRootDirScope(t *testing.T) {
 
 	g.Expect(ir.BuildSpec.WithBuildInstructions.DockerfilePath(wd)).To(Equal("/go/src/github.com/errordeveloper/imagine/examples/image-1/Dockerfile"))
 
+	ir.WorkDir = wd
+	ir.Config.Data = `[{ "test": true }]`
+
 	{
 		*ir.Test = false
 
@@ -117,6 +120,12 @@ func TestWithRootDirScope(t *testing.T) {
 			  "image-1": {
 				"context": "/go/src/github.com/errordeveloper/imagine",
 				"dockerfile": "/go/src/github.com/errordeveloper/imagine/examples/image-1/Dockerfile",
+				"labels": {
+				  "com.github.imagine.buildConfig.Data": "[{ \"test\": true }]",
+				  "com.github.imagine.buildConfig.TreeHash": "0c108230c1b6c0032ccf8199315243fd1ae81591",
+				  "com.github.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
+				  "com.github.imagine.schemaVersion": "v1alpha1"
+				},
 				"tags": [
 				  "reg1.example.com/imagine/image-1:0c1082.16c315",
 				  "reg2.example.org/imagine/image-1:0c1082.16c315"
@@ -137,6 +146,7 @@ func TestWithRootDirScope(t *testing.T) {
 				  "linux/amd64",
 				  "linux/arm64"
 				]
+
 			  }
 			}
 		  }
