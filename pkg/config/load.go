@@ -29,22 +29,32 @@ func Load(path string) (*BuildConfig, string, error) {
 	return obj, base64.StdEncoding.EncodeToString(data), nil
 }
 
-func fieldMustBeSetErr(filepath string) error {
-	return fmt.Errorf("'%s' must be set", filepath)
+func fieldMustBeSetErr(fieldpath string) error {
+	return fmt.Errorf("'%s' must be set", fieldpath)
 }
 
-func fieldValueInvalidErr(filepath, value string) error {
-	return fmt.Errorf("'%s: %s' is not valid", filepath, value)
+func fieldMustBeNonEmptyErr(fieldpath string) error{
+	return fmt.Errorf("'%s' cannot be an empty string", fieldpath)
+}
+
+func fieldValueInvalidErr(fieldpath, invalidValue, validValue string) error {
+	return fmt.Errorf("'%s: %q' is not valid, should be '%s: %q'", fieldpath, invalidValue, fieldpath, validValue)
 }
 
 // TODO: write tests for this
 func (o *BuildConfig) ApplyDefaultsAndValidate() error {
+	if o.APIVersion == "" {
+		return fieldMustBeNonEmptyErr(".apiVersion")
+	}
 	if o.APIVersion != apiVersion {
-		return fieldValueInvalidErr(".apiVersion", o.APIVersion)
+		return fieldValueInvalidErr(".apiVersion", o.APIVersion, apiVersion)
 	}
 
+	if o.Kind == "" {
+		return fieldMustBeNonEmptyErr(".kind")
+	}
 	if o.Kind != kind {
-		return fieldValueInvalidErr(".kind", kind)
+		return fieldValueInvalidErr(".kind", o.Kind, kind)
 	}
 
 	return o.Spec.ApplyDefaultsAndValidate()
@@ -55,8 +65,8 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 		return fieldMustBeSetErr(".spec.name")
 	}
 
-	if (o.WithBuildInstructions == nil || o.Dir == nil) && len(o.Variants) == 0 {
-		return fmt.Errorf("at least either '.spec.dir' or '.spec.variants' must be set")
+	if (o.WithBuildInstructions == nil || o.WithBuildInstructions.Dir == nil) && len(o.Variants) == 0 {
+		return fmt.Errorf("at least '.spec.dir' or '.spec.variants' must be set")
 	}
 
 	if o.WithBuildInstructions != nil {
@@ -68,15 +78,11 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 		}
 
 		if filepath.IsAbs(o.Dockerfile.Path) {
-			return fmt.Errorf("absolute path in '.spec.dockerfile.path' is prohibited (%q)", o.Dockerfile.Path)
+			return fmt.Errorf("absolute path in '.spec.dockerfile.path: %q' is prohibited", o.Dockerfile.Path)
 		}
 
 		if strings.HasPrefix(o.Dockerfile.Path, "..") {
-			return fmt.Errorf("'.spec.dockerfile.path' points outside of '.spec.dir' (%q) - you can try '.spec.dockerfile.body' instead", o.Dockerfile.Path)
-		}
-
-		if o.Dir == nil {
-			return fieldMustBeSetErr(".spec.dir")
+			return fmt.Errorf("'.spec.dockerfile.path: %q' points outside of '.spec.dir: %q' - you can try '.spec.dockerfile.body' instead", o.Dockerfile.Path, *o.Dir)
 		}
 
 		if o.Test == nil {
@@ -85,7 +91,7 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 		}
 
 		if o.Target != nil && *o.Target == "" {
-			return fieldMustBeSetErr(".spec.target")
+			return fieldMustBeNonEmptyErr(".spec.target")
 		}
 
 		if o.Untagged == nil {
@@ -103,42 +109,44 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 			o.Secrets[i].Type = "file"
 		}
 
-		if secret.Type != "file" {
-			return fmt.Errorf("usupported '.spec.secrets[%d].type' (%q) - must be \"file\"", i, secret.Type)
+		if o.Secrets[i].Type != "file" {
+			return fmt.Errorf("usupported '.spec.secrets[%d].type: %q' - must be \"file\"", i, secret.Type)
 		}
 
-		if secret.ID != "" {
-			return fieldMustBeSetErr(fmt.Sprintf(".spec.secrets[%d].id", i))
+		if secret.ID == "" {
+			return fieldMustBeNonEmptyErr(fmt.Sprintf(".spec.secrets[%d].id", i))
 		}
 
-		if secret.Source != "" {
-			return fieldMustBeSetErr(fmt.Sprintf(".spec.secrets[%d].source", i))
+		if secret.Source == "" {
+			return fieldMustBeNonEmptyErr(fmt.Sprintf(".spec.secrets[%d].source", i))
 		}
 	}
 
 	for i, variant := range o.Variants {
 		p := fmt.Sprintf(".spec.variants[%d]", i)
 		if variant.Name == "" {
-			return fieldMustBeSetErr(p + ".name")
+			return fieldMustBeNonEmptyErr(p + ".name")
 		}
 		if variant.With == nil {
 			variant.With = o.WithBuildInstructions
 		} else {
+			p += ".with"
+
+			if variant.With.Dir == nil {
+				variant.With.Dir = o.Dir
+			}
+
 			if variant.With.Dockerfile == nil ||
 				(variant.With.Dockerfile.Path == "" && variant.With.Dockerfile.Body == "") {
 				variant.With.Dockerfile = o.Dockerfile
 			}
 
 			if filepath.IsAbs(variant.With.Dockerfile.Path) {
-				return fmt.Errorf("absolute path in '%s.dockerfile.path' is prohibited (%q)", p, variant.With.Dockerfile.Path)
+				return fmt.Errorf("absolute path in '%s.dockerfile.path: %q' is prohibited", p, variant.With.Dockerfile.Path)
 			}
 
 			if strings.HasPrefix(variant.With.Dockerfile.Path, "..") {
-				return fmt.Errorf("'%s.dockerfile.path' points outside of '%s.dir' (%q) - you can try '%s.dockerfile.body' instead", p, p, variant.With.Dockerfile.Path, p)
-			}
-
-			if variant.With.Dir == nil {
-				variant.With.Dir = o.Dir
+				return fmt.Errorf("'%s.dockerfile.path: %q' points outside of '%s.dir: %q' - you can try '%s.dockerfile.body' instead", p, variant.With.Dockerfile.Path, p, *variant.With.Dir, p)
 			}
 
 			for k, v := range o.Args {
@@ -152,7 +160,7 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 			}
 
 			if variant.With.Target != nil && *variant.With.Target == "" {
-				return fieldMustBeSetErr(p + ".target")
+				return fieldMustBeNonEmptyErr(p + ".target")
 			}
 
 			if variant.With.Target == nil {
@@ -171,16 +179,16 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 						variant.With.Secrets[i].Type = "file"
 					}
 
-					if secret.Type != "file" {
-						return fmt.Errorf("usupported '%s.secrets[%d].type' (%q) - must be \"file\"", p, i, secret.Type)
+					if variant.With.Secrets[i].Type != "file" {
+						return fmt.Errorf("usupported '%s.secrets[%d].type: %q' - must be \"file\"", p, i, secret.Type)
 					}
 
-					if secret.ID != "" {
-						return fieldMustBeSetErr(fmt.Sprintf("%s.secrets[%d].id", p, i))
+					if secret.ID == "" {
+						return fieldMustBeNonEmptyErr(fmt.Sprintf("%s.secrets[%d].id", p, i))
 					}
 
-					if secret.Source != "" {
-						return fieldMustBeSetErr(fmt.Sprintf("%s.secrets[%d].source", p, i))
+					if secret.Source == "" {
+						return fieldMustBeNonEmptyErr(fmt.Sprintf("%s.secrets[%d].source", p, i))
 					}
 				}
 			}
