@@ -3,6 +3,7 @@ package build
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -25,6 +26,13 @@ type Flags struct {
 	Config string
 }
 
+const (
+	stateDir = ".imagine" // TODO: make this repo config field
+
+	defaultPlatform       = "linux/amd64"
+	defaultUpstreamBranch = "origin/master"
+)
+
 func BuildCmd() *cobra.Command {
 
 	flags := &Flags{}
@@ -40,17 +48,16 @@ func BuildCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&flags.Builder, "builder", "", "name of buildx builder")
-	cmd.MarkFlagRequired("builder")
+	cmd.Flags().StringVar(&flags.Builder, "builder", "", "use a global buildx builder instead of creating one")
 
 	cmd.Flags().StringVar(&flags.Config, "config", "", "path to build config file")
 	cmd.MarkFlagRequired("config")
 
-	// TODO: --global-config
+	// TODO: --global-config for repo-wide config
 
-	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{"linux/amd64"}, "platforms to target")
+	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{defaultPlatform}, "platforms to target")
 	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
-	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", "origin/master", "upstream branch of the repository")
+	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
 
 	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
 	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
@@ -74,6 +81,8 @@ func (f *Flags) RunBuildCmd() error {
 	if err != nil {
 		return err
 	}
+
+	stateDirPath := filepath.Join(initialWD, stateDir)
 
 	g, err := git.New(initialWD)
 	if err != nil {
@@ -149,7 +158,7 @@ func (f *Flags) RunBuildCmd() error {
 	}
 	fmt.Println(reason)
 
-	manifest, cleanup, err := ir.WriteManifest(f.Registries...)
+	manifest, cleanup, err := ir.WriteManifest(stateDirPath, f.Registries...)
 	if err != nil {
 		return err
 	}
@@ -158,9 +167,13 @@ func (f *Flags) RunBuildCmd() error {
 		fmt.Printf("writen manifest %v\n", manifest)
 	}
 
-	bx := buildx.Buildx{
-		Builder: f.Builder,
+	bx := buildx.New(stateDirPath)
+	bx.Debug = f.Debug
+
+	if err := bx.InitBuilder(f.Builder, f.Platforms); err != nil {
+		return err
 	}
+
 	if err := bx.Bake(manifest); err != nil {
 		return err
 	}

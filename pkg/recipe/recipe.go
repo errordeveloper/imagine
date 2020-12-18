@@ -20,8 +20,6 @@ const (
 	buildConfigDataLabel     = labelPrefix + "buildConfig.Data"
 	buildConfigTreeHashLabel = labelPrefix + "buildConfig.TreeHash"
 	ContextTreeHashLabel     = labelPrefix + "context.TreeHash"
-
-	imagineDir = ".imagine"
 )
 
 type ImagineRecipe struct {
@@ -324,12 +322,11 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	return manifest, nil
 }
 
-func (r *ImagineRecipe) WriteManifest(registries ...string) (string, func(), error) {
-	imagineDirPath := filepath.Join(r.WorkDir, imagineDir)
-	if err := os.MkdirAll(imagineDirPath, 0755); err != nil {
+func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string) (string, func(), error) {
+	if err := os.MkdirAll(stateDirPath, 0755); err != nil {
 		return "", func() {}, err
 	}
-	tempDir, err := ioutil.TempDir(imagineDirPath, "build-*")
+	tempDir, err := ioutil.TempDir(stateDirPath, "build-*")
 	if err != nil {
 		return "", func() {}, err
 	}
