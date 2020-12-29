@@ -89,7 +89,15 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 
-	bc, bcData, err := config.Load(f.Config)
+	bcPath := f.Config
+	if filepath.IsAbs(bcPath) {
+		bcPath, err = filepath.Rel(initialWD, bcPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	bc, bcData, err := config.Load(bcPath)
 	if err != nil {
 		return err
 	}
@@ -126,7 +134,7 @@ func (f *Flags) RunBuildCmd() error {
 	ir.Git.WorkInProgressSuffix = "wip" // TODO: make this a repo and repo config field
 
 	ir.Config.Data = bcData
-	ir.Config.Path = f.Config
+	ir.Config.Path = bcPath
 
 	// TODO implement usefull cheks:
 	// - presence of Dockerfile.dockerignore in the same direcory
@@ -169,8 +177,9 @@ func (f *Flags) RunBuildCmd() error {
 
 	bx := buildx.New(stateDirPath)
 	bx.Debug = f.Debug
+	bx.Platforms = f.Platforms
 
-	if err := bx.InitBuilder(f.Builder, f.Platforms); err != nil {
+	if err := bx.InitBuilder(f.Builder); err != nil {
 		return err
 	}
 
