@@ -17,14 +17,11 @@ import (
 )
 
 type Flags struct {
+	*config.CommonFlags
+
 	Builder string
 
-	Platforms, Registries []string // TODO(post-mvp): make these repo config fields
-	UpstreamBranch        string   // TODO(post-mvp): make this repo config fields
-
-	Push, Export, Force, Debug bool
-
-	Config string
+	Force, Debug bool
 }
 
 const (
@@ -36,7 +33,9 @@ const (
 
 func BuildCmd() *cobra.Command {
 
-	flags := &Flags{}
+	flags := &Flags{
+		CommonFlags: &config.CommonFlags{},
+	}
 
 	cmd := &cobra.Command{
 		Use: "build",
@@ -49,19 +48,12 @@ func BuildCmd() *cobra.Command {
 		},
 	}
 
+	flags.Register(cmd)
+
 	cmd.Flags().StringVar(&flags.Builder, "builder", "", "use a global buildx builder instead of creating one")
 
-	cmd.Flags().StringVar(&flags.Config, "config", "", "path to build config file")
-	cmd.MarkFlagRequired("config")
-
-	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{defaultPlatform}, "platforms to target")
-	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
-	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
-
-	cmd.Flags().BoolVar(&flags.Push, "push", false, "whether to push image to registries or not (if any registries are given)")
-	cmd.Flags().BoolVar(&flags.Export, "export", false, "whether to export the image to an OCI tarball 'image-<name>.oci'")
-
-	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
+	// TODO(post-mvp): --no-cache for rebuilding without cache
+	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuilding")
 	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 
 	return cmd
@@ -79,7 +71,7 @@ func (f *Flags) RunBuildCmd() error {
 
 	stateDirPath := filepath.Join(initialWD, stateDir)
 
-	g, err := git.New(initialWD)
+	repo, err := git.New(initialWD)
 	if err != nil {
 		return err
 	}
@@ -121,6 +113,14 @@ func (f *Flags) RunBuildCmd() error {
 	// - [ ] (post-mvp) define index image schema and implement it
 	// - [ ] (post-mvp) implement some usefull cheks
 	//    - [ ] presence of Dockerfile.dockerignore in the same direcory
+	// - [ ] (post-mvp) improve TagMode
+	//    - [ ] expose various options for treating multiple tags
+	//    - [ ] enable tags on release branches (either as an option
+	//            or by documenting that upstream branch needs to
+	//  		  change in repo config on a release branch)
+	//    - [ ] enable semver tags along with tree hash tags by default
+	//    - [ ] enable non-semver tags
+	// - [ ] (post-mvp) should unnamed/main variants be allowed along with named variants?
 
 	ir := &recipe.ImagineRecipe{
 		Push:      f.Push,
@@ -130,11 +130,12 @@ func (f *Flags) RunBuildCmd() error {
 		BuildSpec: &bc.Spec,
 	}
 
-	ir.Git.Git = g
-
+	ir.Git.Git = repo
 	ir.Git.BaseBranch = f.UpstreamBranch
-	ir.Git.BranchedOffSuffix = "dev"    // TODO(post-mvp): make this a flag and repo config field
-	ir.Git.WorkInProgressSuffix = "wip" // TODO(post-mvp): make this a repo and repo config field
+	if !f.WithoutSuffix {
+		ir.Git.BranchedOffSuffix = "-dev"    // TODO(post-mvp): make this a flag and a repo config field
+		ir.Git.WorkInProgressSuffix = "-wip" // TODO(post-mvp): make this a repo and a repo config field
+	}
 
 	ir.Config.Data = bcData
 	ir.Config.Path = bcPath

@@ -9,12 +9,20 @@ import (
 )
 
 type Rebuilder struct {
-	RegistryAPI registry.RegistryAPI
+	RegistryAPI                             registry.RegistryAPI
+	BranchedOffSuffix, WorkInProgressSuffix string
 }
 
 func (r *Rebuilder) ShouldRebuild(manifest *recipe.BakeManifest) (bool, string, error) {
 	for _, ref := range manifest.RegistryTags() {
-		for _, suffix := range []string{"-dev-wip", "-dev", "-wip"} {
+		for _, suffix := range []string{
+			r.BranchedOffSuffix + r.WorkInProgressSuffix,
+			r.BranchedOffSuffix,
+			r.WorkInProgressSuffix,
+		} {
+			if suffix == "" {
+				continue
+			}
 			if strings.HasSuffix(ref, suffix) {
 				return true, fmt.Sprintf("rebuilding due to %q suffix", suffix), nil
 			}
