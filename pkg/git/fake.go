@@ -29,7 +29,7 @@ func (f *FakeRepo) TreeHashForHead(path string, short bool) (string, error) {
 	}
 	v, ok := f.TreeHashForHeadVal[path]
 	if !ok {
-		return "", fmt.Errorf("%s not in fake tree", path)
+		return "", fmt.Errorf("%s not in fake tree (TreeHashForHead)", path)
 	}
 	return getHash(v, short)
 }
@@ -40,7 +40,7 @@ func (f *FakeRepo) CommitHashForHead(short bool) (string, error) {
 
 func (f *FakeRepo) TagsForHead() ([]string, error) {
 	if len(f.TagsForHeadVal) == 0 {
-		return nil, fmt.Errorf("no tag in fake repo")
+		return nil, fmt.Errorf("no tag in fake repo (TagsForHead)")
 	}
 	return f.TagsForHeadVal, nil
 }
@@ -59,7 +59,7 @@ func (f *FakeRepo) IsWIP(path string) (bool, error) {
 	}
 	v, ok := f.IsWIPVal[path]
 	if !ok {
-		return false, fmt.Errorf("%s not in fake tree", path)
+		return false, fmt.Errorf("%s not in fake tree (IsWIP)", path)
 	}
 	return v, nil
 }
