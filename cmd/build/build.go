@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -18,8 +19,8 @@ import (
 type Flags struct {
 	Builder string
 
-	Platforms, Registries []string // TODO: make these repo config fields
-	UpstreamBranch        string   // TODO: make this repo config fields
+	Platforms, Registries []string // TODO(post-mvp): make these repo config fields
+	UpstreamBranch        string   // TODO(post-mvp): make this repo config fields
 
 	Push, Export, Force, Debug bool
 
@@ -27,7 +28,7 @@ type Flags struct {
 }
 
 const (
-	stateDir = ".imagine" // TODO: make this repo config field
+	stateDir = ".imagine" // TODO(post-mvp): make this repo config field
 
 	defaultPlatform       = "linux/amd64"
 	defaultUpstreamBranch = "origin/master"
@@ -53,8 +54,6 @@ func BuildCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flags.Config, "config", "", "path to build config file")
 	cmd.MarkFlagRequired("config")
 
-	// TODO: --global-config for repo-wide config
-
 	cmd.Flags().StringArrayVar(&flags.Platforms, "platform", []string{defaultPlatform}, "platforms to target")
 	cmd.Flags().StringArrayVar(&flags.Registries, "registry", []string{}, "registry prefixes to use for tags")
 	cmd.Flags().StringVar(&flags.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
@@ -65,10 +64,6 @@ func BuildCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuild the image")
 	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 
-	// TODO:
-	// - flag to write summary (tags and variants) to a file
-	//    - json
-	//    - plain text
 	return cmd
 }
 
@@ -117,7 +112,15 @@ func (f *Flags) RunBuildCmd() error {
 	// - [x] rebuilder must check all variants
 	// - [x] compose multi-target recipe directly from the config
 	//    - [x] there should be just one invocation of bake
+	// - [ ] TODO(post-mvp) --repo-config for repo-wide config
 	// - [ ] write exact image names at the end of the build
+	//    - [ ] as plain text summary to stdout
+	//    - [ ] as JSON/YAML
+	//    - [ ] (post-mvp) as plain text file with custom formatting
+	//    - [ ] (post-mvp) lookup digests and include them in
+	// - [ ] (post-mvp) define index image schema and implement it
+	// - [ ] (post-mvp) implement some usefull cheks
+	//    - [ ] presence of Dockerfile.dockerignore in the same direcory
 
 	ir := &recipe.ImagineRecipe{
 		Push:      f.Push,
@@ -130,14 +133,11 @@ func (f *Flags) RunBuildCmd() error {
 	ir.Git.Git = g
 
 	ir.Git.BaseBranch = f.UpstreamBranch
-	ir.Git.BranchedOffSuffix = "dev"    // TODO: make this a flag and repo config field
-	ir.Git.WorkInProgressSuffix = "wip" // TODO: make this a repo and repo config field
+	ir.Git.BranchedOffSuffix = "dev"    // TODO(post-mvp): make this a flag and repo config field
+	ir.Git.WorkInProgressSuffix = "wip" // TODO(post-mvp): make this a repo and repo config field
 
 	ir.Config.Data = bcData
 	ir.Config.Path = bcPath
-
-	// TODO implement usefull cheks:
-	// - presence of Dockerfile.dockerignore in the same direcory
 
 	m, err := ir.ToBakeManifest(f.Registries...)
 	if err != nil {
@@ -147,6 +147,8 @@ func (f *Flags) RunBuildCmd() error {
 	rb := rebuilder.Rebuilder{
 		RegistryAPI: &registry.Registry{},
 	}
+
+	fmt.Printf("current tags: %s", strings.Join(m.RegistryTags(), ", "))
 
 	rebuild, reason, err := rb.ShouldRebuild(m)
 	if err != nil {
