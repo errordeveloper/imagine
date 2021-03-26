@@ -33,7 +33,7 @@ func fieldMustBeSetErr(fieldpath string) error {
 	return fmt.Errorf("'%s' must be set", fieldpath)
 }
 
-func fieldMustBeNonEmptyErr(fieldpath string) error{
+func fieldMustBeNonEmptyErr(fieldpath string) error {
 	return fmt.Errorf("'%s' cannot be an empty string", fieldpath)
 }
 
@@ -122,8 +122,9 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 		}
 	}
 
-	for i, variant := range o.Variants {
+	for i := range o.Variants {
 		p := fmt.Sprintf(".spec.variants[%d]", i)
+		variant := &o.Variants[i]
 		if variant.Name == "" {
 			return fieldMustBeNonEmptyErr(p + ".name")
 		}

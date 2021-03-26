@@ -17,7 +17,6 @@ func TestRebuilder(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	newImagineRecipe := func(repo *git.FakeRepo) *recipe.ImagineRecipe {
-
 		dir := ""
 		ir := &recipe.ImagineRecipe{
 			WorkDir: "/go/src/github.com/errordeveloper/imagine",
@@ -43,12 +42,28 @@ func TestRebuilder(t *testing.T) {
 		}
 
 		ir.Git.Git = repo
-		ir.Git.BranchedOffSuffix = "dev"
-		ir.Git.WorkInProgressSuffix = "wip"
+		ir.Git.BranchedOffSuffix = "-dev"
+		ir.Git.WorkInProgressSuffix = "-wip"
 
 		g.Expect(ir.BuildSpec.ApplyDefaultsAndValidate()).To(Succeed())
 
 		return ir
+	}
+
+	newRebuilder := func(present ...string) *Rebuilder {
+		fakeRegistry := &registry.FakeRegistry{
+			DigestValues: map[string]string{},
+		}
+
+		for _, image := range present {
+			fakeRegistry.DigestValues[image] = "sha256:test"
+		}
+
+		return &Rebuilder{
+			RegistryAPI:          fakeRegistry,
+			BranchedOffSuffix:    "-dev",
+			WorkInProgressSuffix: "-wip",
+		}
 	}
 
 	{
@@ -60,9 +75,7 @@ func TestRebuilder(t *testing.T) {
 		m, err := ir.ToBakeManifest("reg1.example.com/imagine", "reg2.example.org/imagine")
 		g.Expect(err).ToNot(HaveOccurred())
 
-		rb := &Rebuilder{
-			RegistryAPI: &registry.FakeRegistry{},
-		}
+		rb := newRebuilder()
 
 		rebuild, reason, err := rb.ShouldRebuild(m)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -78,9 +91,7 @@ func TestRebuilder(t *testing.T) {
 		m, err := ir.ToBakeManifest("reg1.example.com/imagine", "reg2.example.org/imagine")
 		g.Expect(err).ToNot(HaveOccurred())
 
-		rb := &Rebuilder{
-			RegistryAPI: &registry.FakeRegistry{},
-		}
+		rb := newRebuilder()
 
 		rebuild, reason, err := rb.ShouldRebuild(m)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -97,13 +108,9 @@ func TestRebuilder(t *testing.T) {
 		m, err := ir.ToBakeManifest("reg1.example.com/imagine", "reg2.example.org/imagine")
 		g.Expect(err).ToNot(HaveOccurred())
 
-		rb := &Rebuilder{
-			RegistryAPI: &registry.FakeRegistry{
-				DigestValues: map[string]string{
-					"reg2.example.org/imagine:613919.16c315": "sha256:test",
-				},
-			},
-		}
+		rb := newRebuilder(
+			"reg2.example.org/imagine:613919.16c315",
+		)
 
 		rebuild, reason, err := rb.ShouldRebuild(m)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -120,11 +127,7 @@ func TestRebuilder(t *testing.T) {
 		m, err := ir.ToBakeManifest("reg1.example.com/imagine", "reg2.example.org/imagine")
 		g.Expect(err).ToNot(HaveOccurred())
 
-		rb := &Rebuilder{
-			RegistryAPI: &registry.FakeRegistry{
-				DigestValues: map[string]string{},
-			},
-		}
+		rb := newRebuilder()
 
 		rebuild, reason, err := rb.ShouldRebuild(m)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -141,14 +144,10 @@ func TestRebuilder(t *testing.T) {
 		m, err := ir.ToBakeManifest("reg1.example.com/imagine", "reg2.example.org/imagine")
 		g.Expect(err).ToNot(HaveOccurred())
 
-		rb := &Rebuilder{
-			RegistryAPI: &registry.FakeRegistry{
-				DigestValues: map[string]string{
-					"reg2.example.org/imagine/image-1:613919.16c315": "sha256:test",
-					"reg1.example.com/imagine/image-1:613919.16c315": "sha256:test",
-				},
-			},
-		}
+		rb := newRebuilder(
+			"reg2.example.org/imagine/image-1:613919.16c315",
+			"reg1.example.com/imagine/image-1:613919.16c315",
+		)
 
 		rebuild, reason, err := rb.ShouldRebuild(m)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -162,17 +161,13 @@ func TestRebuilder(t *testing.T) {
 			IsDevVal:  false,
 		})
 
-		m, err := ir.ToBakeManifest("reg1.example.com/imagine", "reg2.example.org/imagine")
+		m, err := ir.ToBakeManifest("reg3.example.com/imagine", "reg2.example.org/imagine")
 		g.Expect(err).ToNot(HaveOccurred())
 
-		rb := &Rebuilder{
-			RegistryAPI: &registry.FakeRegistry{
-				DigestValues: map[string]string{
-					"reg2.example.org/imagine/image-1:613919.16c315": "sha256:test",
-					"reg1.example.com/imagine/image-1:613919.16c315": "sha256:test",
-				},
-			},
-		}
+		rb := newRebuilder(
+			"reg2.example.org/imagine/image-1:613919.16c315",
+			"reg3.example.com/imagine/image-1:613919.16c315",
+		)
 
 		rebuild, reason, err := rb.ShouldRebuild(m)
 		g.Expect(err).ToNot(HaveOccurred())

@@ -32,6 +32,7 @@ type ImagineRecipe struct {
 	}
 
 	Push, Export bool
+	ExportDir    string
 
 	*config.BuildSpec
 
@@ -92,7 +93,7 @@ func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (str
 			return "", err
 		}
 		if branchedOff {
-			suffix += "-dev"
+			suffix += r.Git.BranchedOffSuffix
 		}
 	}
 
@@ -106,54 +107,67 @@ func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (str
 			return "", err
 		}
 		if configWIP || contextWIP {
-			suffix += "-wip"
+			suffix += r.Git.WorkInProgressSuffix
 		}
 	}
 
 	switch r.BuildSpec.TagMode {
 	case "GitTreeHash":
-		configTreeHash, err := r.Git.TreeHashForHead(configPath, true)
-		if err != nil {
-			return "", err
-		}
-
-		contextTreeHash, err := r.Git.TreeHashForHead(contextPath, true)
-		if err != nil {
-			return "", err
-		}
-
-		if variantName == "" {
-			return fmt.Sprintf("%s.%s", configTreeHash, contextTreeHash) + suffix, nil
-		}
-		return fmt.Sprintf("%s.%s.%s", variantName, configTreeHash, contextTreeHash) + suffix, nil
+		return r.makeGitCommitHashTag(configPath, contextPath, variantName, suffix)
 	case "GitCommitHash":
-		commitHash, err := r.Git.CommitHashForHead(true)
-		if err != nil {
-			return "", err
-		}
-
-		if variantName == "" {
-			return fmt.Sprintf("%s", commitHash) + suffix, nil
-		}
-		return fmt.Sprintf("%s.%s", variantName, commitHash) + suffix, nil
+		return r.makeGitTreeHashTag(configPath, configPath, variantName, suffix)
 	case "GitTagSemVer":
-		// it doens't make sense to use a tag when tree is not clean, or
-		// it is a development branch
-		semVerTag, err := r.Git.SemVerTagForHead(false)
-		if err != nil {
-			return "", err
-		}
-		if semVerTag == nil {
-			return "", fmt.Errorf("unexpected error: nil semver")
-		}
-		if suffix != "" {
-			return "", fmt.Errorf("tree must be clean to use a git tag and it must be on given base branch")
-		}
-		return "v" + semVerTag.String(), nil
-
+		return r.makeGitTagSemVerTag(configPath, configPath, variantName, suffix)
 	default:
 		return "", fmt.Errorf("unknown '.spec.tagMode' (%q)", r.BuildSpec.TagMode)
 	}
+}
+func (r *ImagineRecipe) makeGitCommitHashTag(configPath, contextPath, variantName, suffix string) (string, error) {
+	configTreeHash, err := r.Git.TreeHashForHead(configPath, true)
+	if err != nil {
+		return "", err
+	}
+
+	contextTreeHash, err := r.Git.TreeHashForHead(contextPath, true)
+	if err != nil {
+		return "", err
+	}
+
+	if variantName == "" {
+		return fmt.Sprintf("%s.%s", configTreeHash, contextTreeHash) + suffix, nil
+	}
+	return fmt.Sprintf("%s.%s.%s", variantName, configTreeHash, contextTreeHash) + suffix, nil
+}
+
+func (r *ImagineRecipe) makeGitTreeHashTag(_, _, variantName, suffix string) (string, error) {
+	commitHash, err := r.Git.CommitHashForHead(true)
+	if err != nil {
+		return "", err
+	}
+
+	if variantName == "" {
+		return fmt.Sprintf("%s", commitHash) + suffix, nil
+	}
+	return fmt.Sprintf("%s.%s", variantName, commitHash) + suffix, nil
+}
+
+func (r *ImagineRecipe) makeGitTagSemVerTag(_, _, variantName, suffix string) (string, error) {
+	// it doens't make sense to use a tag when tree is not clean, or
+	// it is a development branch
+	semVerTag, err := r.Git.SemVerTagForHead(false)
+	if err != nil {
+		return "", err
+	}
+	if semVerTag == nil {
+		return "", fmt.Errorf("unexpected error: nil semver")
+	}
+	if suffix != "" {
+		return "", fmt.Errorf("cannot use tag because of %q suffix", suffix)
+	}
+	if variantName == "" {
+		return fmt.Sprintf("v%s", semVerTag.String()), nil
+	}
+	return fmt.Sprintf("%s.v%s", variantName, semVerTag.String()), nil
 }
 
 func (r *ImagineRecipe) RegistryTags(variantName, variantContextPath string, registries ...string) ([]string, error) {
@@ -200,7 +214,6 @@ const (
 )
 
 func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string, buildInstructions *config.WithBuildInstructions, registries ...string) (bakeTargetMap, []string, error) {
-
 	mainTargetName := imageName
 	if variantName != "" {
 		mainTargetName += "-" + variantName
@@ -258,7 +271,7 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	if r.Export {
 		mainTarget.Outputs = []string{
 			fmt.Sprintf("type=docker,dest=%s",
-				filepath.Join(buildInstructions.ContextPath(r.WorkDir), fmt.Sprintf("image-%s.oci", r.Name))),
+				filepath.Join(r.ExportDir, fmt.Sprintf("image-%s.oci", r.Name))),
 		}
 	}
 
@@ -281,6 +294,10 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, error) {
 	if r.BuildSpec == nil {
 		return nil, fmt.Errorf("unexpected error: BuildSpec not set in %T", *r)
+	}
+
+	if r.ExportDir == "" {
+		r.ExportDir = r.WorkDir
 	}
 
 	if len(r.Variants) == 0 {
