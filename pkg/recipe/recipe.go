@@ -260,7 +260,8 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 		ContextTreeHashLabel:     contextTreeHash,
 	}
 
-	// TODO: label for HEAD
+	// TODO: label for HEAD - this might skew builds that are fully-reproducible,
+	// maybe it's not a good idea or it should be optional?
 
 	// this is a slice, but buildx doesn't support multiple outputs
 	// at present (https://github.com/docker/buildx/issues/316)
@@ -269,9 +270,10 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	}
 
 	if r.Export {
+		exportFilename := fmt.Sprintf("image-%s.oci", mainTargetName)
 		mainTarget.Outputs = []string{
 			fmt.Sprintf("type=docker,dest=%s",
-				filepath.Join(r.ExportDir, fmt.Sprintf("image-%s.oci", r.Name))),
+				filepath.Join(r.ExportDir, exportFilename)),
 		}
 	}
 

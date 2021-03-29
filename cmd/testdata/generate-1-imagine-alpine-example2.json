@@ -1,0 +1,73 @@
+{
+  "group": {
+    "default": {
+      "targets": [
+        "imagine-alpine-example2-a",
+        "imagine-alpine-example2-b",
+        "imagine-alpine-example2-c"
+      ]
+    }
+  },
+  "target": {
+    "imagine-alpine-example2-a": {
+      "context": "/Users/ilya/Code/imagine/cmd/testdata/empty",
+      "dockerfile-inline": "FROM alpine\nRUN echo $variant \u003e /etc/variant",
+      "labels": {
+        "com.github.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUyCiAgZGlyOiAuL2V4YW1wbGVzL2FscGluZQogIHZhcmlhbnRzOgogIC0gbmFtZTogYQogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBhCiAgICAgIGRpcjogLi9jbWQvdGVzdGRhdGEvZW1wdHkKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBib2R5OiAiRlJPTSBhbHBpbmVcblJVTiBlY2hvICR2YXJpYW50ID4gL2V0Yy92YXJpYW50IgogIC0gbmFtZTogYgogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBiCiAgICAgIGRvY2tlcmZpbGU6CiAgICAgICAgcGF0aDogRG9ja2VyZmlsZS5zcGVjaWFsCiAgLSBuYW1lOiBjCiAgICB3aXRoOgogICAgICBhcmdzOgogICAgICAgIHZhcmlhbnQ6IGMK",
+        "com.github.imagine.buildConfig.TreeHash": "8bdddc584c699709118140256320fc3a5a6de713",
+        "com.github.imagine.context.TreeHash": "d564d0bc3dd917926892c55e3706cc116d5b165e",
+        "com.github.imagine.schemaVersion": "v1alpha1"
+      },
+      "tags": [
+        "example.com/test2/imagine-alpine-example2:a.8bdddc5.d564d0b"
+      ],
+      "platforms": [
+        "plan9/sparc",
+        "netbsd/toaster"
+      ],
+      "output": [
+        "type=docker,dest=/Users/ilya/Code/imagine/image-imagine-alpine-example2-a.oci"
+      ]
+    },
+    "imagine-alpine-example2-b": {
+      "context": "/Users/ilya/Code/imagine/examples/alpine",
+      "dockerfile": "/Users/ilya/Code/imagine/examples/alpine/Dockerfile.special",
+      "labels": {
+        "com.github.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUyCiAgZGlyOiAuL2V4YW1wbGVzL2FscGluZQogIHZhcmlhbnRzOgogIC0gbmFtZTogYQogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBhCiAgICAgIGRpcjogLi9jbWQvdGVzdGRhdGEvZW1wdHkKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBib2R5OiAiRlJPTSBhbHBpbmVcblJVTiBlY2hvICR2YXJpYW50ID4gL2V0Yy92YXJpYW50IgogIC0gbmFtZTogYgogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBiCiAgICAgIGRvY2tlcmZpbGU6CiAgICAgICAgcGF0aDogRG9ja2VyZmlsZS5zcGVjaWFsCiAgLSBuYW1lOiBjCiAgICB3aXRoOgogICAgICBhcmdzOgogICAgICAgIHZhcmlhbnQ6IGMK",
+        "com.github.imagine.buildConfig.TreeHash": "8bdddc584c699709118140256320fc3a5a6de713",
+        "com.github.imagine.context.TreeHash": "8ca1f3c945138061fd8117700120c4131b45d181",
+        "com.github.imagine.schemaVersion": "v1alpha1"
+      },
+      "tags": [
+        "example.com/test2/imagine-alpine-example2:b.8bdddc5.8ca1f3c"
+      ],
+      "platforms": [
+        "plan9/sparc",
+        "netbsd/toaster"
+      ],
+      "output": [
+        "type=docker,dest=/Users/ilya/Code/imagine/image-imagine-alpine-example2-b.oci"
+      ]
+    },
+    "imagine-alpine-example2-c": {
+      "context": "/Users/ilya/Code/imagine/examples/alpine",
+      "dockerfile": "/Users/ilya/Code/imagine/examples/alpine/Dockerfile",
+      "labels": {
+        "com.github.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUyCiAgZGlyOiAuL2V4YW1wbGVzL2FscGluZQogIHZhcmlhbnRzOgogIC0gbmFtZTogYQogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBhCiAgICAgIGRpcjogLi9jbWQvdGVzdGRhdGEvZW1wdHkKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBib2R5OiAiRlJPTSBhbHBpbmVcblJVTiBlY2hvICR2YXJpYW50ID4gL2V0Yy92YXJpYW50IgogIC0gbmFtZTogYgogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBiCiAgICAgIGRvY2tlcmZpbGU6CiAgICAgICAgcGF0aDogRG9ja2VyZmlsZS5zcGVjaWFsCiAgLSBuYW1lOiBjCiAgICB3aXRoOgogICAgICBhcmdzOgogICAgICAgIHZhcmlhbnQ6IGMK",
+        "com.github.imagine.buildConfig.TreeHash": "8bdddc584c699709118140256320fc3a5a6de713",
+        "com.github.imagine.context.TreeHash": "8ca1f3c945138061fd8117700120c4131b45d181",
+        "com.github.imagine.schemaVersion": "v1alpha1"
+      },
+      "tags": [
+        "example.com/test2/imagine-alpine-example2:c.8bdddc5.8ca1f3c"
+      ],
+      "platforms": [
+        "plan9/sparc",
+        "netbsd/toaster"
+      ],
+      "output": [
+        "type=docker,dest=/Users/ilya/Code/imagine/image-imagine-alpine-example2-c.oci"
+      ]
+    }
+  }
+}

@@ -16,9 +16,11 @@ spec:
     with:
       args:
         variant: b
+      test: true
       dockerfile:
         path: Dockerfile.special
   - name: c
     with:
+      untagged: true
       args:
         variant: c

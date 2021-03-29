@@ -21,7 +21,7 @@ type Flags struct {
 
 	Builder string
 
-	Force, Debug bool
+	Force bool
 }
 
 const (
@@ -38,8 +38,9 @@ func BuildCmd() *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use: "build",
-		//Args: cobra.NoArgs(),
+		Use:   "build",
+		Short: "build and test image(s) using a config file",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := flags.InitBuildCmd(cmd); err != nil {
 				return err
@@ -54,7 +55,6 @@ func BuildCmd() *cobra.Command {
 
 	// TODO(post-mvp): --no-cache for rebuilding without cache
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuilding")
-	cmd.Flags().BoolVar(&flags.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 
 	return cmd
 }

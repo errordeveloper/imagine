@@ -15,6 +15,7 @@ type BasicFlags struct {
 	Registries     []string // TODO(post-mvp): make this a repo config field
 	UpstreamBranch string   // TODO(post-mvp): make this a repo config field
 	WithoutSuffix  bool
+	Debug          bool
 }
 
 type CommonFlags struct {
@@ -33,6 +34,8 @@ func (f *BasicFlags) Register(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.UpstreamBranch, "upstream-branch", defaultUpstreamBranch, "upstream branch of the repository")
 
 	cmd.Flags().BoolVar(&f.WithoutSuffix, "without-tag-suffix", false, "whether to exclude '-dev' and '-wip' suffix from image tags")
+
+	cmd.Flags().BoolVar(&f.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 }
 
 func (f *CommonFlags) Register(cmd *cobra.Command) {

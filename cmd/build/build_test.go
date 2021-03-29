@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	. "github.com/onsi/gomega"
 
 	. "github.com/errordeveloper/imagine/cmd/build"
@@ -22,21 +23,16 @@ import (
 func TestBuildCmd(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	//g.Expect(os.Setenv(buildx.EnvImagineBuildxCommamnd, "./dummy-buildx.sh")).To(Succeed())
-
 	h := &helper{}
 
-	g.Expect(h.initBuilder()).To(Succeed())
-
-	cmd := BuildCmd()
-
-	g.Expect(cmd).ToNot(BeNil())
-	g.Expect(cmd.Use).To(Equal("build"))
+	g.Expect(h.setup()).To(Succeed())
 
 	for _, result := range []struct {
-		args []string
-		fail bool
-		err  error
+		args         []string
+		fail         bool
+		err          error
+		expectRefs   map[string]string
+		unexpectRefs []string
 	}{
 		{
 			fail: true,
@@ -52,6 +48,11 @@ func TestBuildCmd(t *testing.T) {
 				"--config=" + testdata("sample-1.yaml"),
 				"--registry=" + h.registry() + "/empty",
 				"--debug",
+				// TODO: avoid having to set this (it is to make sure tests pass on any branch)
+				"--without-tag-suffix",
+			},
+			unexpectRefs: []string{
+				h.registry() + "/empty/imagine-alpine-example:e4fd507.8ca1f3c",
 			},
 			fail: false,
 			err:  nil,
@@ -62,6 +63,11 @@ func TestBuildCmd(t *testing.T) {
 				"--registry=" + h.registry() + "/test1",
 				"--push",
 				"--debug",
+				// TODO: avoid having to set this (it is to make sure tests pass on any branch)
+				"--without-tag-suffix",
+			},
+			expectRefs: map[string]string{
+				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:13d49aeb52005244ac969ca417a43a5b5c4cea9a7402e947c1cb81002522ab7f",
 			},
 			fail: false,
 			err:  nil,
@@ -72,33 +78,79 @@ func TestBuildCmd(t *testing.T) {
 				"--registry=" + h.registry() + "/test1",
 				"--push",
 				"--debug",
+				// TODO: avoid having to set this (it is to make sure tests pass on any branch)
+				"--without-tag-suffix",
+			},
+			expectRefs: map[string]string{
+				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:13d49aeb52005244ac969ca417a43a5b5c4cea9a7402e947c1cb81002522ab7f",
+			},
+			fail: false,
+			err:  nil,
+		},
+		{
+			args: []string{
+				"--config=" + testdata("sample-2.yaml"),
+				"--registry=" + h.registry() + "/test2",
+				"--push",
+				"--debug",
+				// TODO: avoid having to set this (it is to make sure tests pass on any branch)
+				"--without-tag-suffix",
+			},
+			expectRefs: map[string]string{
+				h.registry() + "/test2/imagine-alpine-example2:a.8bdddc5.d564d0b": "",
+				h.registry() + "/test2/imagine-alpine-example2:b.8bdddc5.8ca1f3c": "",
+				h.registry() + "/test2/imagine-alpine-example2:c.8bdddc5.8ca1f3c": "",
+			},
+			unexpectRefs: []string{
+				h.registry() + "/test2/imagine-alpine-example2:8bdddc5.d564d0b",
+				h.registry() + "/test2/imagine-alpine-example2:8bdddc5.8ca1f3c",
 			},
 			fail: false,
 			err:  nil,
 		},
 	} {
+		cmd := BuildCmd()
+
+		g.Expect(cmd).ToNot(BeNil())
+		g.Expect(cmd.Use).To(Equal("build"))
+
 		cmd.SetArgs(result.args)
+
 		err := cmd.ExecuteContext(context.Background())
 		if result.fail {
 			g.Expect(err).To(HaveOccurred())
 			g.Expect(err).To(MatchError(result.err))
 		} else {
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
+			for ref, digest := range result.expectRefs {
+				remoteDigest, err := crane.Digest(ref, crane.Insecure)
+				g.Expect(err).NotTo(HaveOccurred())
+				if digest != "" {
+					g.Expect(remoteDigest).To(Equal(digest))
+				}
+
+			}
+			for _, ref := range result.unexpectRefs {
+				_, err := crane.Digest(ref, crane.Insecure)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("MANIFEST_UNKNOWN: manifest unknown"))
+			}
 		}
-		// TODO: check registry
 	}
 
 	h.cleanup()
 }
 
 type helper struct {
-	stateDir, registryHost, registryPort, registryContainerID, buildkitdConfigPath string
+	stateDir string
+	buildx   *buildx.Buildx
 
-	docker *dockerClient.Client
-	buildx *buildx.Buildx
+	registryHost, registryPort string
+	registryContainerID        string
+	docker                     *dockerClient.Client
 }
 
-func (h *helper) initBuilder() error {
+func (h *helper) setup() error {
 	wd, _ := os.Getwd()
 	// go test runs in source dir, so we need to use
 	// top-level dir due to chdir in git.New
@@ -120,14 +172,17 @@ func (h *helper) initBuilder() error {
 		return err
 	}
 
-	h.buildkitdConfigPath = filepath.Join(h.stateDir, "buildkitd.toml")
-	buildkitdConfigContents := fmt.Sprintf("[registry.%q]\nhttp = true\ninsecure = true", h.registry())
+	buildkitdConfigPath := filepath.Join(h.stateDir, "buildkitd.toml")
+	buildkitdConfigContents := fmt.Sprintf("[registry.%q]\n\thttp = true\n\tinsecure = true\n", h.registry())
 
-	if err := os.WriteFile(h.buildkitdConfigPath, []byte(buildkitdConfigContents), 0644); err != nil {
+	if err := os.MkdirAll(h.stateDir, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(buildkitdConfigPath, []byte(buildkitdConfigContents), 0644); err != nil {
 		return err
 	}
 
-	return h.buildx.InitBuilder("", "--config="+h.buildkitdConfigPath)
+	return h.buildx.InitBuilder("", "--config="+buildkitdConfigPath)
 }
 
 func (h *helper) startRegistry() error {
@@ -175,8 +230,6 @@ func (h *helper) registry() string {
 }
 
 func (h *helper) cleanup() {
-	_ = os.Remove(h.buildkitdConfigPath)
-
 	_ = h.docker.ContainerRemove(context.Background(), h.registryContainerID,
 		dockerTypes.ContainerRemoveOptions{RemoveVolumes: true, Force: true})
 
