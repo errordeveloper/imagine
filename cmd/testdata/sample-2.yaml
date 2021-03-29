@@ -2,14 +2,14 @@ kind: ImagineBuildConfig
 apiVersion: v1alpha1
 
 spec:
-  name: imagine-alpine-example
+  name: imagine-alpine-example2
   dir: ./examples/alpine
   variants:
   - name: a
     with:
       args:
         variant: a
-      dir: ./
+      dir: ./cmd/testdata/empty
       dockerfile:
         body: "FROM alpine\nRUN echo $variant > /etc/variant"
   - name: b
