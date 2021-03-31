@@ -52,7 +52,7 @@ func GenerateCmd() *cobra.Command {
 }
 
 func (f *Flags) InitGenerateCmd(cmd *cobra.Command) error {
-	return nil
+	return f.Validate()
 }
 
 func (f *Flags) RunGenerateCmd() error {

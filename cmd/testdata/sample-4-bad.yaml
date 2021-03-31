@@ -1,0 +1,6 @@
+kind: ImagineBuildConfig
+apiVersion: v1alpha1
+
+spec:
+  name: imagine-alpine-example2
+  variants: []
