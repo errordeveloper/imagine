@@ -1,0 +1,8 @@
+kind: ImagineBuildConfig
+apiVersion: v1alpha1
+
+spec:
+  variants:
+    - name: foo
+      args:
+        a: 1

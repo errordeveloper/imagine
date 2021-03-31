@@ -34,7 +34,7 @@ func TestGenerateCmd(t *testing.T) {
 		{
 			args: []string{"--config=non-existent"},
 			fail: true,
-			err:  &os.PathError{Op: "open", Path: "non-existent", Err: syscall.Errno(0x2)},
+			err:  fmt.Errorf(`unable to open config file "non-existent": %w`, &os.PathError{Op: "open", Path: "non-existent", Err: syscall.Errno(0x2)}),
 		},
 		{
 			args: []string{
@@ -55,7 +55,7 @@ func TestGenerateCmd(t *testing.T) {
 			args: []string{
 				"--config=" + testdata("sample-2.yaml"),
 				"--registry=example.com/test2",
-				"--push", "--export", // TODO: make it fail when --export is set, add tests,
+				"--export",
 				"--debug",
 				"--platform=plan9/sparc",
 				"--platform=netbsd/toaster",
@@ -100,7 +100,22 @@ func TestGenerateCmd(t *testing.T) {
 
 			expectedOutput: testdata("generate-3-imagine-alpine-example2.json"),
 			actualOutput:   h.stateDir + "/generate-3.json",
+		}, {
+			args: []string{
+				"--config=" + testdata("sample-4-bad.yaml"),
+			},
+			fail: true,
+			err: fmt.Errorf(`config file "cmd/testdata/sample-4-bad.yaml" is invalid: %w`,
+				fmt.Errorf(`at least '.spec.dir' or '.spec.variants' must be set`)),
+		}, {
+			args: []string{
+				"--config=" + testdata("sample-5-bad.yaml"),
+			},
+			fail: true,
+			err: fmt.Errorf(`config file "cmd/testdata/sample-5-bad.yaml" is invalid: %w`,
+				fmt.Errorf(`'.spec.name' must be set`)),
 		},
+		// TODO: cover some error-cases for files not in git git
 	} {
 		cmd := GenerateCmd()
 
