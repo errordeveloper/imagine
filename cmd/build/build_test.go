@@ -67,7 +67,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:13d49aeb52005244ac969ca417a43a5b5c4cea9a7402e947c1cb81002522ab7f",
+				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
 			},
 			fail: false,
 			err:  nil,
@@ -82,7 +82,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:13d49aeb52005244ac969ca417a43a5b5c4cea9a7402e947c1cb81002522ab7f",
+				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
 			},
 			fail: false,
 			err:  nil,

@@ -122,10 +122,10 @@ func TestManifestsBasic(t *testing.T) {
 				"context": "/go/src/github.com/errordeveloper/imagine",
 				"dockerfile": "/go/src/github.com/errordeveloper/imagine/examples/image-1/Dockerfile",
 				"labels": {
-				  "com.github.imagine.buildConfig.Data": "W3sgInRlc3QiOiB0cnVlIH1dCg==",
-				  "com.github.imagine.buildConfig.TreeHash": "0c108230c1b6c0032ccf8199315243fd1ae81591",
-				  "com.github.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
-				  "com.github.imagine.schemaVersion": "v1alpha1"
+				  "com.github.errordeveloper.imagine.buildConfig.Data": "W3sgInRlc3QiOiB0cnVlIH1dCg==",
+				  "com.github.errordeveloper.imagine.buildConfig.TreeHash": "0c108230c1b6c0032ccf8199315243fd1ae81591",
+				  "com.github.errordeveloper.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
+				  "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
 				},
 				"tags": [
 				  "reg1.example.com/imagine/image-1:0c1082.16c315",
@@ -435,10 +435,10 @@ func TestManifestsWithVariants(t *testing.T) {
 				"context": "/go/src/github.com/errordeveloper/imagine/examples/image-1",
 				"dockerfile": "/go/src/github.com/errordeveloper/imagine/examples/image-1/Dockerfile",
 				"labels": {
-                    "com.github.imagine.buildConfig.Data": "",
-                    "com.github.imagine.buildConfig.TreeHash": "613919533ebd03d6bafbd538ccad3a4acea9b761",
-                    "com.github.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
-                    "com.github.imagine.schemaVersion": "v1alpha1"
+                    "com.github.errordeveloper.imagine.buildConfig.Data": "",
+                    "com.github.errordeveloper.imagine.buildConfig.TreeHash": "613919533ebd03d6bafbd538ccad3a4acea9b761",
+                    "com.github.errordeveloper.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
+                    "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
                 },
 				"tags": [
 				  "reg1.example.com/imagine/image-1:foo.613919.16c315",
