@@ -15,7 +15,7 @@ import (
 
 const (
 	schemaVersion            = "v1alpha1"
-	labelPrefix              = "com.github.imagine."
+	labelPrefix              = "com.github.errordeveloper.imagine."
 	schemaVersionLabel       = labelPrefix + "schemaVersion"
 	buildConfigDataLabel     = labelPrefix + "buildConfig.Data"
 	buildConfigTreeHashLabel = labelPrefix + "buildConfig.TreeHash"

@@ -11,10 +11,10 @@
       "context": "/Users/ilya/Code/imagine/examples/alpine",
       "dockerfile": "/Users/ilya/Code/imagine/examples/alpine/Dockerfile",
       "labels": {
-        "com.github.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUKICBkaXI6IC4vZXhhbXBsZXMvYWxwaW5lCg==",
-        "com.github.imagine.buildConfig.TreeHash": "e4fd507c43729d067ce5f7c12ddf112df8b756a5",
-        "com.github.imagine.context.TreeHash": "8ca1f3c945138061fd8117700120c4131b45d181",
-        "com.github.imagine.schemaVersion": "v1alpha1"
+        "com.github.errordeveloper.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUKICBkaXI6IC4vZXhhbXBsZXMvYWxwaW5lCg==",
+        "com.github.errordeveloper.imagine.buildConfig.TreeHash": "e4fd507c43729d067ce5f7c12ddf112df8b756a5",
+        "com.github.errordeveloper.imagine.context.TreeHash": "8ca1f3c945138061fd8117700120c4131b45d181",
+        "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
       },
       "tags": [
         "example.com/test1/imagine-alpine-example:e4fd507.8ca1f3c"
