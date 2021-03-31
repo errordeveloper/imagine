@@ -23,11 +23,9 @@ import (
 func TestBuildCmd(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	//g.Expect(os.Setenv(buildx.EnvImagineBuildxCommamnd, "./dummy-buildx.sh")).To(Succeed())
-
 	h := &helper{}
 
-	g.Expect(h.initBuilder()).To(Succeed())
+	g.Expect(h.setup()).To(Succeed())
 
 	for _, result := range []struct {
 		args         []string
@@ -117,25 +115,26 @@ func TestBuildCmd(t *testing.T) {
 		g.Expect(cmd.Use).To(Equal("build"))
 
 		cmd.SetArgs(result.args)
+
 		err := cmd.ExecuteContext(context.Background())
 		if result.fail {
 			g.Expect(err).To(HaveOccurred())
 			g.Expect(err).To(MatchError(result.err))
 		} else {
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			for ref, digest := range result.expectRefs {
 				remoteDigest, err := crane.Digest(ref, crane.Insecure)
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				if digest != "" {
 					g.Expect(remoteDigest).To(Equal(digest))
 				}
 
 			}
-			// for _, ref := range result.unexpectRefs {
-			// 	_, err := crane.Digest(ref, crane.Insecure)
-			// 	g.Expect(err).To(HaveOccurred())
-			// 	g.Expect(err.Error()).To(ContainSubstring("MANIFEST_UNKNOWN: manifest unknown"))
-			// }
+			for _, ref := range result.unexpectRefs {
+				_, err := crane.Digest(ref, crane.Insecure)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("MANIFEST_UNKNOWN: manifest unknown"))
+			}
 		}
 	}
 
@@ -151,7 +150,7 @@ type helper struct {
 	docker                     *dockerClient.Client
 }
 
-func (h *helper) initBuilder() error {
+func (h *helper) setup() error {
 	wd, _ := os.Getwd()
 	// go test runs in source dir, so we need to use
 	// top-level dir due to chdir in git.New

@@ -1,0 +1,26 @@
+kind: ImagineBuildConfig
+apiVersion: v1alpha1
+
+spec:
+  name: imagine-alpine-example2
+  dir: ./examples/alpine
+  variants:
+  - name: a
+    with:
+      args:
+        variant: a
+      dir: ./cmd/testdata/empty
+      dockerfile:
+        body: "FROM alpine\nRUN echo $variant > /etc/variant"
+  - name: b
+    with:
+      args:
+        variant: b
+      test: true
+      dockerfile:
+        path: Dockerfile.special
+  - name: c
+    with:
+      untagged: true
+      args:
+        variant: c

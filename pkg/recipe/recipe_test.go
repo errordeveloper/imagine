@@ -327,7 +327,6 @@ func TestManifestsWithVariants(t *testing.T) {
 				Variants: []config.BuildVariant{
 					{
 						Name: "foo",
-						//With: &config.WithBuildInstructions{},
 					},
 				},
 			},
