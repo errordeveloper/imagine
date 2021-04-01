@@ -15,15 +15,15 @@ func Load(path string) (*BuildConfig, string, error) {
 
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("unable to open config file %q: %w", path, err)
 	}
 
 	if err := yaml.Unmarshal(data, obj); err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("unable to parse config file %q: %w", path, err)
 	}
 
 	if err := obj.ApplyDefaultsAndValidate(); err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("config file %q is invalid: %w", path, err)
 	}
 
 	return obj, base64.StdEncoding.EncodeToString(data), nil

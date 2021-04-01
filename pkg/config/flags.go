@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +25,7 @@ type CommonFlags struct {
 
 	Push, Export bool
 	Platforms    []string
+	NoCache      bool
 }
 
 func (f *BasicFlags) Register(cmd *cobra.Command) {
@@ -38,6 +41,10 @@ func (f *BasicFlags) Register(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.Debug, "debug", false, "print debuging info and keep generated buildx manifest file")
 }
 
+func (f *BasicFlags) Validate() error {
+	return nil
+}
+
 func (f *CommonFlags) Register(cmd *cobra.Command) {
 	f.BasicFlags = &BasicFlags{}
 	f.BasicFlags.Register(cmd)
@@ -46,5 +53,19 @@ func (f *CommonFlags) Register(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&f.Export, "export", false, "whether to export images to an OCI tarball 'image-<name>.oci'")
 
+	cmd.Flags().BoolVar(&f.NoCache, "no-cache", false, "do not use cache")
+
 	cmd.Flags().StringArrayVar(&f.Platforms, "platform", []string{defaultPlatform}, "platforms to target")
+}
+
+func (f *CommonFlags) Validate() error {
+	if err := f.BasicFlags.Validate(); err != nil {
+		return err
+	}
+
+	if f.Export && f.Push {
+		return fmt.Errorf("--export and --push are mutualy exclusive and cannot be set at the same time")
+	}
+
+	return nil
 }
