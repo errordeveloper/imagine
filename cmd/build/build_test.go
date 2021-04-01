@@ -27,12 +27,18 @@ func TestBuildCmd(t *testing.T) {
 
 	g.Expect(h.setup()).To(Succeed())
 
+	type expectFiles map[string]struct {
+		contents string
+		absent   bool
+	}
+
 	for _, result := range []struct {
 		args         []string
 		fail         bool
 		err          error
 		expectRefs   map[string]string
 		unexpectRefs []string
+		expectFiles  expectFiles
 	}{
 		{
 			fail: true,
@@ -41,7 +47,18 @@ func TestBuildCmd(t *testing.T) {
 		{
 			args: []string{"--config=non-existent"},
 			fail: true,
-			err:  &os.PathError{Op: "open", Path: "non-existent", Err: syscall.Errno(0x2)},
+			err:  fmt.Errorf(`unable to open config file "non-existent": %w`, &os.PathError{Op: "open", Path: "non-existent", Err: syscall.Errno(0x2)}),
+		},
+		{
+			args: []string{
+				"--config=" + testdata("sample-1.yaml"),
+				"--registry=" + h.registry() + "/empty",
+				"--debug",
+				"--export",
+				"--push",
+			},
+			fail: true,
+			err:  fmt.Errorf("--export and --push are mutualy exclusive and cannot be set at the same time"),
 		},
 		{
 			args: []string{
@@ -52,7 +69,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			unexpectRefs: []string{
-				h.registry() + "/empty/imagine-alpine-example:e4fd507.8ca1f3c",
+				"empty/imagine-alpine-example:e4fd507.8ca1f3c",
 			},
 			fail: false,
 			err:  nil,
@@ -67,7 +84,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
+				"test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
 			},
 			fail: false,
 			err:  nil,
@@ -82,7 +99,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				h.registry() + "/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
+				"/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
 			},
 			fail: false,
 			err:  nil,
@@ -97,16 +114,41 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				h.registry() + "/test2/imagine-alpine-example2:a.8bdddc5.d564d0b": "",
-				h.registry() + "/test2/imagine-alpine-example2:b.8bdddc5.8ca1f3c": "",
-				h.registry() + "/test2/imagine-alpine-example2:c.8bdddc5.8ca1f3c": "",
+				"test2/imagine-alpine-example2:a.8bdddc5.d564d0b": "",
+				"test2/imagine-alpine-example2:b.8bdddc5.8ca1f3c": "",
+				"test2/imagine-alpine-example2:c.8bdddc5.8ca1f3c": "",
 			},
 			unexpectRefs: []string{
-				h.registry() + "/test2/imagine-alpine-example2:8bdddc5.d564d0b",
-				h.registry() + "/test2/imagine-alpine-example2:8bdddc5.8ca1f3c",
+				"test2/imagine-alpine-example2:8bdddc5.d564d0b",
+				"test2/imagine-alpine-example2:8bdddc5.8ca1f3c",
 			},
 			fail: false,
 			err:  nil,
+		},
+		{
+			args: []string{
+				"--config=" + testdata("sample-2.yaml"),
+				"--registry=" + h.registry() + "/test3",
+				"--export",
+				"--debug",
+				// TODO: avoid having to set this (it is to make sure tests pass on any branch)
+				"--without-tag-suffix",
+			},
+			unexpectRefs: []string{
+				"test3/imagine-alpine-example2:a.8bdddc5.d564d0b",
+				"test3/imagine-alpine-example2:b.8bdddc5.8ca1f3c",
+				"test3/imagine-alpine-example2:c.8bdddc5.8ca1f3c",
+				"test3/imagine-alpine-example2:8bdddc5.d564d0b",
+				"test3/imagine-alpine-example2:8bdddc5.8ca1f3c",
+			},
+			fail: false,
+			err:  nil,
+			expectFiles: expectFiles{
+				"image-imagine-alpine-example2-a.oci": {},
+				"image-imagine-alpine-example2-b.oci": {},
+				"image-imagine-alpine-example2-c.oci": {},
+				"image-imagine-alpine-example2.oci":   {absent: true},
+			},
 		},
 	} {
 		cmd := BuildCmd()
@@ -123,7 +165,7 @@ func TestBuildCmd(t *testing.T) {
 		} else {
 			g.Expect(err).NotTo(HaveOccurred())
 			for ref, digest := range result.expectRefs {
-				remoteDigest, err := crane.Digest(ref, crane.Insecure)
+				remoteDigest, err := crane.Digest(h.registry()+"/"+ref, crane.Insecure)
 				g.Expect(err).NotTo(HaveOccurred())
 				if digest != "" {
 					g.Expect(remoteDigest).To(Equal(digest))
@@ -131,9 +173,23 @@ func TestBuildCmd(t *testing.T) {
 
 			}
 			for _, ref := range result.unexpectRefs {
-				_, err := crane.Digest(ref, crane.Insecure)
+				_, err := crane.Digest(h.registry()+"/"+ref, crane.Insecure)
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring("MANIFEST_UNKNOWN: manifest unknown"))
+			}
+			for path, file := range result.expectFiles {
+				path = filepath.Join(h.repoTopLevel, path)
+				if !file.absent {
+					g.Expect(path).To(BeAnExistingFile())
+					h.filesToRemove = append(h.filesToRemove, path)
+					if file.contents != "" {
+						actualOutputData, err := os.ReadFile(path)
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(string(actualOutputData)).To(Equal(file.contents))
+					}
+				} else {
+					g.Expect(path).NotTo(BeAnExistingFile())
+				}
 			}
 		}
 	}
@@ -142,8 +198,10 @@ func TestBuildCmd(t *testing.T) {
 }
 
 type helper struct {
-	stateDir string
-	buildx   *buildx.Buildx
+	repoTopLevel, stateDir string
+	buildx                 *buildx.Buildx
+
+	filesToRemove []string
 
 	registryHost, registryPort string
 	registryContainerID        string
@@ -155,6 +213,7 @@ func (h *helper) setup() error {
 	// go test runs in source dir, so we need to use
 	// top-level dir due to chdir in git.New
 	h.stateDir = filepath.Join(wd, "..", "..", ".imagine")
+	h.repoTopLevel = filepath.Join(wd, "..", "..")
 
 	h.buildx = buildx.New(h.stateDir)
 	h.buildx.Debug = true
@@ -178,6 +237,7 @@ func (h *helper) setup() error {
 	if err := os.MkdirAll(h.stateDir, 0755); err != nil {
 		return err
 	}
+	h.filesToRemove = []string{h.stateDir}
 	if err := os.WriteFile(buildkitdConfigPath, []byte(buildkitdConfigContents), 0644); err != nil {
 		return err
 	}
@@ -235,7 +295,9 @@ func (h *helper) cleanup() {
 
 	_ = h.buildx.Remove("")
 
-	_ = os.RemoveAll(h.stateDir)
+	for _, f := range h.filesToRemove {
+		_ = os.RemoveAll(f)
+	}
 }
 
 func testdata(name string) string {

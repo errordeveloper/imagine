@@ -13,7 +13,6 @@ import (
 func TestBasicSample(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-
 	sample := `{
 		"kind": "ImagineBuildConfig",
 		"apiVersion": "v1alpha1",
@@ -36,17 +35,16 @@ func TestBasicSample(t *testing.T) {
 
 	g.Expect(obj.Spec.Dockerfile.Path).To(Equal("Dockerfile"))
 	g.Expect(obj.Spec.Dockerfile.Body).To(BeEmpty())
-	
+
 	g.Expect(*obj.Spec.Test).To(BeFalse())
 	g.Expect(*obj.Spec.Untagged).To(BeFalse())
 	g.Expect(obj.Spec.TagMode).To(Equal("GitTreeHash"))
 }
 
-
 func TestErrorCases(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	samples := []struct{
+	samples := []struct {
 		errMessage string
 		configData string
 	}{

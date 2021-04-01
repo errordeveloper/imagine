@@ -53,14 +53,13 @@ func BuildCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flags.Builder, "builder", "", "use a global buildx builder instead of creating one")
 
-	// TODO(post-mvp): --no-cache for rebuilding without cache
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuilding")
 
 	return cmd
 }
 
 func (f *Flags) InitBuildCmd(cmd *cobra.Command) error {
-	return nil
+	return f.Validate()
 }
 
 func (f *Flags) RunBuildCmd() error {
@@ -186,7 +185,12 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 
-	if err := bx.Bake(manifest); err != nil {
+	bakeArgs := []string{}
+	if f.NoCache {
+		bakeArgs = append(bakeArgs, "--no-cache")
+	}
+
+	if err := bx.Bake(manifest, bakeArgs...); err != nil {
 		return err
 	}
 	if !f.Debug {
