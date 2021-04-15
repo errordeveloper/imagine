@@ -50,6 +50,28 @@ type Secret struct {
 	Source string `json:"source"`
 }
 
+type DockerfileBuildInstructions struct {
+	Path string `json:"path"`
+	Body string `json:"body"`
+}
+
+type BuildSummary struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+
+	Name string `json:"name"`
+
+	Registries []string
+	Images     []ImageSummary
+}
+
+type ImageSummary struct {
+	VarianName   *string
+	Digest       *string
+	Tag          *string
+	RegistryRefs []string
+}
+
 func (s Secret) String() string {
 	return fmt.Sprintf("id=%s,type=%s,source=%s", s.ID, s.Type, s.Source)
 }
@@ -67,9 +89,4 @@ func (i *WithBuildInstructions) DockerfilePath(workDir string) string {
 		return i.Dockerfile.Path
 	}
 	return filepath.Join(i.ContextPath(workDir), i.Dockerfile.Path)
-}
-
-type DockerfileBuildInstructions struct {
-	Path string `json:"path"`
-	Body string `json:"body"`
 }

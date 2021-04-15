@@ -22,6 +22,9 @@ type Flags struct {
 	Builder string
 
 	Force bool
+
+	WriteSummary  bool
+	SummaryFormat string
 }
 
 const (
@@ -54,6 +57,10 @@ func BuildCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flags.Builder, "builder", "", "use a global buildx builder instead of creating one")
 
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuilding")
+
+	cmd.Flags().BoolVar(&flags.WriteSummary, "write-summary", true, "write build summary upon success")
+
+	cmd.Flags().StringVar(&flags.SummaryFormat, "summary-format", "TextFiles", "format of build summary (YAML, TextFiles)")
 
 	return cmd
 }
@@ -120,6 +127,7 @@ func (f *Flags) RunBuildCmd() error {
 	//    - [ ] enable semver tags along with tree hash tags by default
 	//    - [ ] enable non-semver tags
 	// - [ ] (post-mvp) should unnamed/main variants be allowed along with named variants?
+	// - [ ] (post-mvp) export prefix
 
 	ir := &recipe.ImagineRecipe{
 		Push:      f.Push,
@@ -148,7 +156,7 @@ func (f *Flags) RunBuildCmd() error {
 		RegistryAPI: &registry.Registry{},
 	}
 
-	fmt.Printf("current tags: %s", strings.Join(m.RegistryTags(), ", "))
+	fmt.Printf("current registry refs: %s", strings.Join(m.RegistryRefs(), ", "))
 
 	rebuild, reason, err := rb.ShouldRebuild(m)
 	if err != nil {

@@ -170,8 +170,8 @@ func (r *ImagineRecipe) makeGitTagSemVerTag(_, _, variantName, suffix string) (s
 	return fmt.Sprintf("%s.v%s", variantName, semVerTag.String()), nil
 }
 
-func (r *ImagineRecipe) RegistryTags(variantName, variantContextPath string, registries ...string) ([]string, error) {
-	registryTags := []string{}
+func (r *ImagineRecipe) RegistryRefs(variantName, variantContextPath string, registries ...string) ([]string, error) {
+	refs := []string{}
 
 	tag, err := r.GetTag(variantName, r.Config.Path, variantContextPath)
 	if err != nil {
@@ -179,11 +179,11 @@ func (r *ImagineRecipe) RegistryTags(variantName, variantContextPath string, reg
 	}
 
 	for _, registry := range registries {
-		registryTag := fmt.Sprintf("%s/%s:%s", registry, r.Name, tag)
-		registryTags = append(registryTags, registryTag)
+		ref := fmt.Sprintf("%s/%s:%s", registry, r.Name, tag)
+		refs = append(refs, ref)
 	}
 
-	return registryTags, nil
+	return refs, nil
 }
 
 func (r *ImagineRecipe) newBakeTarget(buildInstructions *config.WithBuildInstructions) *bake.Target {
@@ -227,12 +227,12 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	push := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
 
 	if !*buildInstructions.Untagged {
-		registryTags, err := r.RegistryTags(variantName, *buildInstructions.Dir, registries...)
+		refs, err := r.RegistryRefs(variantName, *buildInstructions.Dir, registries...)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		mainTarget.Tags = registryTags
+		mainTarget.Tags = refs
 	}
 
 	if buildInstructions.Target != nil {
@@ -369,12 +369,12 @@ func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string)
 	return manifest, cleanup, nil
 }
 
-func (m *BakeManifest) RegistryTags() []string {
-	registryTags := []string{}
+func (m *BakeManifest) RegistryRefs() []string {
+	refs := []string{}
 	for _, target := range m.Target {
-		registryTags = append(registryTags, target.Tags...)
+		refs = append(refs, target.Tags...)
 	}
-	return registryTags
+	return refs
 }
 
 func (m *BakeManifest) ToJSON() (string, error) {

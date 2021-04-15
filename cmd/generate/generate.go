@@ -112,7 +112,7 @@ func (f *Flags) RunGenerateCmd() error {
 		return err
 	}
 
-	fmt.Printf("current tags: %s", strings.Join(m.RegistryTags(), ", "))
+	fmt.Printf("current registry refs: %s", strings.Join(m.RegistryRefs(), ", "))
 
 	if f.Output != "" {
 		if err := m.WriteFile(f.Output); err != nil {
