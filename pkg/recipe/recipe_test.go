@@ -176,6 +176,7 @@ func TestTagging(t *testing.T) {
 
 		ir.Config.Path = "dummy.yaml"
 
+		repo.CommitHashForHeadVal = "15b881c016c1d81f924cc0c1ae002333253f0991"
 		repo.TreeHashForHeadRoot = "16c315243fd31c00b80c188123099501ae2ccf91"
 		repo.TreeHashForHeadVal = map[string]string{
 			"dummy.yaml": "613919533ebd03d6bafbd538ccad3a4acea9b761",
@@ -366,9 +367,13 @@ func TestManifestsWithVariants(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		g.Expect(m.Group).To(HaveKey("default"))
-		g.Expect(m.Group["default"].Targets).To(ConsistOf("image-1-foo"))
+		g.Expect(m.Group["default"].Targets).To(ConsistOf("index", "image-1-foo"))
 
-		g.Expect(m.Target).To(HaveLen(1))
+		g.Expect(m.Target).To(HaveLen(2))
+
+		g.Expect(m.Target).To(HaveKey("index"))
+		g.Expect(m.Target["index"].Tags).To(HaveLen(0))
+
 		g.Expect(m.Target).To(HaveKey("image-1-foo"))
 		g.Expect(m.Target["image-1-foo"].Tags).To(HaveLen(0))
 	}
@@ -382,9 +387,16 @@ func TestManifestsWithVariants(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		g.Expect(m.Group).To(HaveKey("default"))
-		g.Expect(m.Group["default"].Targets).To(ConsistOf("image-1-foo"))
+		g.Expect(m.Group["default"].Targets).To(ConsistOf("index", "image-1-foo"))
 
-		g.Expect(m.Target).To(HaveLen(1))
+		g.Expect(m.Target).To(HaveLen(2))
+
+		g.Expect(m.Target).To(HaveKey("index"))
+		g.Expect(m.Target["index"].Tags).To(ConsistOf(
+			"reg1.example.com/imagine/image-1:index.15b881",
+			"reg2.example.org/imagine/image-1:index.15b881",
+		))
+
 		g.Expect(m.Target).To(HaveKey("image-1-foo"))
 		g.Expect(m.Target["image-1-foo"].Tags).To(ConsistOf(
 			"reg1.example.com/imagine/image-1:foo.613919.16c315",
@@ -402,11 +414,12 @@ func TestManifestsWithVariants(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		g.Expect(m.Group).To(HaveKey("default"))
-		g.Expect(m.Group["default"].Targets).To(ConsistOf("image-1-foo-test", "image-1-foo"))
+		g.Expect(m.Group["default"].Targets).To(ConsistOf("image-1-foo-test", "image-1-foo", "index"))
 
-		g.Expect(m.Target).To(HaveLen(2))
+		g.Expect(m.Target).To(HaveLen(3))
 		g.Expect(m.Target).To(HaveKey("image-1-foo"))
 		g.Expect(m.Target).To(HaveKey("image-1-foo-test"))
+		g.Expect(m.Target).To(HaveKey("index"))
 
 		g.Expect(m.Target["image-1-foo"].Tags).To(ConsistOf(
 			"reg1.example.com/imagine/image-1:foo.613919.16c315",
@@ -425,6 +438,7 @@ func TestManifestsWithVariants(t *testing.T) {
 			"group": {
 			  "default": {
 				"targets": [
+				  "index",
 				  "image-1-foo-test",
 				  "image-1-foo"
 				]
@@ -435,11 +449,11 @@ func TestManifestsWithVariants(t *testing.T) {
 				"context": "/go/src/github.com/errordeveloper/imagine/examples/image-1",
 				"dockerfile": "/go/src/github.com/errordeveloper/imagine/examples/image-1/Dockerfile",
 				"labels": {
-                    "com.github.errordeveloper.imagine.buildConfig.Data": "",
-                    "com.github.errordeveloper.imagine.buildConfig.TreeHash": "613919533ebd03d6bafbd538ccad3a4acea9b761",
-                    "com.github.errordeveloper.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
-                    "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
-                },
+				  "com.github.errordeveloper.imagine.buildConfig.Data": "",
+				  "com.github.errordeveloper.imagine.buildConfig.TreeHash": "613919533ebd03d6bafbd538ccad3a4acea9b761",
+				  "com.github.errordeveloper.imagine.context.TreeHash": "16c315243fd31c00b80c188123099501ae2ccf91",
+				  "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
+				},
 				"tags": [
 				  "reg1.example.com/imagine/image-1:foo.613919.16c315",
 				  "reg2.example.org/imagine/image-1:foo.613919.16c315"
@@ -449,8 +463,8 @@ func TestManifestsWithVariants(t *testing.T) {
 				  "linux/arm64"
 				],
 				"output": [
-                  "type=image,push=false"
-                ]
+				  "type=image,push=false"
+				]
 			  },
 			  "image-1-foo-test": {
 				"context": "/go/src/github.com/errordeveloper/imagine/examples/image-1",
@@ -459,6 +473,18 @@ func TestManifestsWithVariants(t *testing.T) {
 				"platforms": [
 				  "linux/amd64",
 				  "linux/arm64"
+				]
+			  },
+			  "index": {
+				"context": "",
+				"dockerfile-inline": "FROM scratch\nCOPY index-image-1.json /index.json\n",
+				"labels": {
+				  "com.github.errordeveloper.imagine.buildConfig.Data": "",
+				  "com.github.errordeveloper.imagine.indexSchemaVersion": "v1alpha1",
+				  "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
+				},
+				"output": [
+				  "type=image,push=false"
 				]
 			  }
 			}
@@ -486,6 +512,7 @@ func TestOutputModes(t *testing.T) {
 	ir.Config.Path = "dummy.yaml"
 
 	ir.Git.Git = &git.FakeRepo{
+		CommitHashForHeadVal: "15b881c016c1d81f924cc0c1ae002333253f0991",
 		TreeHashForHeadVal: map[string]string{
 			"examples/image-1": "16c315243f8123099501ae2ccd31c00b80c18f91",
 			"dummy.yaml":       "613919533ebd03d6bafbd538ccad3a4acea9b761",

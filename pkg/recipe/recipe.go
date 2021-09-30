@@ -14,12 +14,16 @@ import (
 )
 
 const (
-	schemaVersion            = "v1alpha1"
-	labelPrefix              = "com.github.errordeveloper.imagine."
-	schemaVersionLabel       = labelPrefix + "schemaVersion"
+	schemaVersion      = "v1alpha1"
+	indexSchemaVersion = "v1alpha1"
+	labelPrefix        = "com.github.errordeveloper.imagine."
+
+	schemaVersionLabel      = labelPrefix + "schemaVersion"
+	indexSchemaVersionLabel = labelPrefix + "indexSchemaVersion"
+
 	buildConfigDataLabel     = labelPrefix + "buildConfig.Data"
 	buildConfigTreeHashLabel = labelPrefix + "buildConfig.TreeHash"
-	ContextTreeHashLabel     = labelPrefix + "context.TreeHash"
+	contextTreeHashLabel     = labelPrefix + "context.TreeHash"
 )
 
 type ImagineRecipe struct {
@@ -186,6 +190,22 @@ func (r *ImagineRecipe) RegistryRefs(variantName, variantContextPath string, reg
 	return refs, nil
 }
 
+func (r *ImagineRecipe) RegistryIndexRefs(registries ...string) ([]string, error) {
+	refs := []string{}
+
+	tag, err := r.makeGitCommitHashTag("", "", "index", "")
+	if err != nil {
+		return nil, fmt.Errorf("unable make index tag for image %q: %w", r.Name, err)
+	}
+
+	for _, registry := range registries {
+		ref := fmt.Sprintf("%s/%s:%s", registry, r.Name, tag)
+		refs = append(refs, ref)
+	}
+
+	return refs, nil
+}
+
 func (r *ImagineRecipe) newBakeTarget(buildInstructions *config.WithBuildInstructions) *bake.Target {
 	target := &bake.Target{
 		Context:   new(string),
@@ -211,7 +231,39 @@ const (
 	ImageTestStageName   = "test"
 	DefaultBakeGroup     = "default"
 	BakeTestTargetSuffix = "-test"
+	IndexTargetName      = "index"
 )
+
+func (r *ImagineRecipe) commonLabels() map[string]string {
+	return map[string]string{
+		schemaVersionLabel:   schemaVersion,
+		buildConfigDataLabel: r.Config.Data,
+	}
+}
+
+func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string) (*bake.Target, error) {
+	indexTarget := &bake.Target{
+		Context:          new(string),
+		DockerfileInline: new(string),
+		Labels:           r.commonLabels(),
+	}
+
+	indexTarget.Labels[indexSchemaVersionLabel] = indexSchemaVersion
+
+	*indexTarget.DockerfileInline = fmt.Sprintf("FROM scratch\nCOPY index-%s.json /index.json\n", r.Name)
+
+	refs, err := r.RegistryIndexRefs(registries...)
+	if err != nil {
+		return nil, err
+	}
+
+	indexTarget.Tags = refs
+
+	shouldPush := (r.Push && len(registries) != 0)
+	r.setOutputs(IndexTargetName, indexTarget, shouldPush)
+
+	return indexTarget, nil
+}
 
 func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string, buildInstructions *config.WithBuildInstructions, registries ...string) (bakeTargetMap, []string, error) {
 	mainTargetName := imageName
@@ -223,8 +275,6 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	targets := bakeTargetMap{}
 
 	mainTarget := r.newBakeTarget(buildInstructions)
-
-	push := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
 
 	if !*buildInstructions.Untagged {
 		refs, err := r.RegistryRefs(variantName, *buildInstructions.Dir, registries...)
@@ -253,29 +303,16 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 		return nil, nil, err
 	}
 
-	mainTarget.Labels = map[string]string{
-		schemaVersionLabel:       schemaVersion,
-		buildConfigDataLabel:     r.Config.Data,
-		buildConfigTreeHashLabel: configTreeHash,
-		ContextTreeHashLabel:     contextTreeHash,
-	}
+	mainTarget.Labels = r.commonLabels()
+
+	mainTarget.Labels[buildConfigTreeHashLabel] = configTreeHash
+	mainTarget.Labels[contextTreeHashLabel] = contextTreeHash
 
 	// TODO: label for HEAD - this might skew builds that are fully-reproducible,
 	// maybe it's not a good idea or it should be optional?
 
-	// this is a slice, but buildx doesn't support multiple outputs
-	// at present (https://github.com/docker/buildx/issues/316)
-	mainTarget.Outputs = []string{
-		fmt.Sprintf("type=image,push=%v", push),
-	}
-
-	if r.Export {
-		exportFilename := fmt.Sprintf("image-%s.oci", mainTargetName)
-		mainTarget.Outputs = []string{
-			fmt.Sprintf("type=docker,dest=%s",
-				filepath.Join(r.ExportDir, exportFilename)),
-		}
-	}
+	shouldPush := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
+	r.setOutputs(mainTargetName, mainTarget, shouldPush)
 
 	targets[mainTargetName] = mainTarget
 
@@ -291,6 +328,23 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	}
 
 	return targets, []string{mainTargetName}, nil
+}
+
+func (r *ImagineRecipe) setOutputs(targetName string, target *bake.Target, shouldPush bool) {
+	// this is a slice, but buildx doesn't support multiple outputs
+	// at present (https://github.com/docker/buildx/issues/316)
+	target.Outputs = []string{
+		fmt.Sprintf("type=image,push=%v", shouldPush),
+	}
+
+	if r.Export {
+		exportFilename := fmt.Sprintf("image-%s.oci", targetName)
+		target.Outputs = []string{
+			fmt.Sprintf("type=docker,dest=%s",
+				filepath.Join(r.ExportDir, exportFilename)),
+		}
+	}
+
 }
 
 func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, error) {
@@ -318,13 +372,18 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 		}, nil
 	}
 
+	indexBakeTarget, err := r.indexAsBakeTarget(r.Name, registries...)
+	if err != nil {
+		return nil, err
+	}
+
 	manifest := &BakeManifest{
 		Group: bakeGroupMap{
 			DefaultBakeGroup: &bake.Group{
-				Targets: []string{},
+				Targets: []string{IndexTargetName},
 			},
 		},
-		Target: bakeTargetMap{},
+		Target: bakeTargetMap{IndexTargetName: indexBakeTarget},
 	}
 
 	for _, variant := range r.Variants {
@@ -339,6 +398,19 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 		manifest.Group[DefaultBakeGroup].Targets = append(manifest.Group[DefaultBakeGroup].Targets, targetNames...)
 	}
 	return manifest, nil
+}
+
+func (r *ImagineRecipe) WriteIndex(filename string) error {
+	index := struct{}{}
+
+	data, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filename, data, 0644)
 }
 
 func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string) (string, func(), error) {
@@ -362,6 +434,13 @@ func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string)
 	}
 
 	if err := m.WriteFile(manifest); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
+
+	index := filepath.Join(tempDir, fmt.Sprintf("index-%s.json", r.Name))
+
+	if err := r.WriteIndex(index); err != nil {
 		cleanup()
 		return "", func() {}, err
 	}
