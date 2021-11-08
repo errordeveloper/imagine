@@ -307,6 +307,8 @@ func TestTagging(t *testing.T) {
 		g.Expect(m.Target["image-1"].Tags).To(ConsistOf(
 			"reg1.example.com/imagine/image-1:613919.16c315",
 			"reg2.example.org/imagine/image-1:613919.16c315",
+			"reg1.example.org/imagine/image-1:v1.22.9",
+			"reg2.example.org/imagine/image-1:v1.22.9",
 		))
 	}
 }
