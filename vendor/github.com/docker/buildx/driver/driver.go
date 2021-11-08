@@ -54,7 +54,7 @@ type Driver interface {
 	Bootstrap(context.Context, progress.Logger) error
 	Info(context.Context) (*Info, error)
 	Stop(ctx context.Context, force bool) error
-	Rm(ctx context.Context, force bool) error
+	Rm(ctx context.Context, force bool, rmVolume bool) error
 	Client(ctx context.Context) (*client.Client, error)
 	Features() map[Feature]bool
 	IsMobyDriver() bool
@@ -78,7 +78,7 @@ func Boot(ctx context.Context, d Driver, pw progress.Writer) (*client.Client, er
 			}
 		}
 
-		c, err := d.Client(context.TODO())
+		c, err := d.Client(ctx)
 		if err != nil {
 			if errors.Cause(err) == ErrNotRunning && try <= 2 {
 				continue

@@ -27,14 +27,18 @@ import (
 	"github.com/docker/docker/pkg/urlutil"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/upload/uploadprovider"
+	"github.com/moby/buildkit/util/apicaps"
 	"github.com/moby/buildkit/util/entitlements"
 	"github.com/moby/buildkit/util/progress/progresswriter"
+	"github.com/moby/buildkit/util/tracing"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -110,6 +114,7 @@ type driverPair struct {
 	driverIndex int
 	platforms   []specs.Platform
 	so          *client.SolveOpt
+	bopts       gateway.BuildOpts
 }
 
 func driverIndexes(m map[string][]driverPair) []int {
@@ -181,6 +186,48 @@ func splitToDriverPairs(availablePlatforms map[string]int, opt map[string]Option
 }
 
 func resolveDrivers(ctx context.Context, drivers []DriverInfo, auth Auth, opt map[string]Options, pw progress.Writer) (map[string][]driverPair, []*client.Client, error) {
+	dps, clients, err := resolveDriversBase(ctx, drivers, auth, opt, pw)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	bopts := make([]gateway.BuildOpts, len(clients))
+
+	span, ctx := tracing.StartSpan(ctx, "load buildkit capabilities", trace.WithSpanKind(trace.SpanKindInternal))
+
+	eg, ctx := errgroup.WithContext(ctx)
+	for i, c := range clients {
+		if c == nil {
+			continue
+		}
+
+		func(i int, c *client.Client) {
+			eg.Go(func() error {
+				clients[i].Build(ctx, client.SolveOpt{}, "buildx", func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+					bopts[i] = c.BuildOpts()
+					return nil, nil
+				}, nil)
+				return nil
+			})
+		}(i, c)
+	}
+
+	err = eg.Wait()
+	span.RecordError(err)
+	span.End()
+	if err != nil {
+		return nil, nil, err
+	}
+	for key := range dps {
+		for i, dp := range dps[key] {
+			dps[key][i].bopts = bopts[dp.driverIndex]
+		}
+	}
+
+	return dps, clients, nil
+}
+
+func resolveDriversBase(ctx context.Context, drivers []DriverInfo, auth Auth, opt map[string]Options, pw progress.Writer) (map[string][]driverPair, []*client.Client, error) {
 	availablePlatforms := map[string]int{}
 	for i, d := range drivers {
 		for _, p := range d.Platform {
@@ -245,6 +292,7 @@ func resolveDrivers(ctx context.Context, drivers []DriverInfo, auth Auth, opt ma
 				workers[i] = ww
 				return nil
 			})
+
 		}(i)
 	}
 
@@ -285,7 +333,7 @@ func toRepoOnly(in string) (string, error) {
 	return strings.Join(out, ","), nil
 }
 
-func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Options, pw progress.Writer, dl dockerLoadCallback) (solveOpt *client.SolveOpt, release func(), err error) {
+func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Options, bopts gateway.BuildOpts, pw progress.Writer, dl dockerLoadCallback) (solveOpt *client.SolveOpt, release func(), err error) {
 	defers := make([]func(), 0, 2)
 	releaseF := func() {
 		for _, f := range defers {
@@ -322,12 +370,32 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 		}
 	}
 
+	cacheTo := make([]client.CacheOptionsEntry, 0, len(opt.CacheTo))
+	for _, e := range opt.CacheTo {
+		if e.Type == "gha" {
+			if !bopts.LLBCaps.Contains(apicaps.CapID("cache.gha")) {
+				continue
+			}
+		}
+		cacheTo = append(cacheTo, e)
+	}
+
+	cacheFrom := make([]client.CacheOptionsEntry, 0, len(opt.CacheFrom))
+	for _, e := range opt.CacheFrom {
+		if e.Type == "gha" {
+			if !bopts.LLBCaps.Contains(apicaps.CapID("cache.gha")) {
+				continue
+			}
+		}
+		cacheFrom = append(cacheFrom, e)
+	}
+
 	so := client.SolveOpt{
 		Frontend:            "dockerfile.v0",
 		FrontendAttrs:       map[string]string{},
 		LocalDirs:           map[string]string{},
-		CacheExports:        opt.CacheTo,
-		CacheImports:        opt.CacheFrom,
+		CacheExports:        cacheTo,
+		CacheImports:        cacheFrom,
 		AllowedEntitlements: opt.Allow,
 	}
 
@@ -399,6 +467,9 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 			return nil, nil, notSupported(d, driver.OCIExporter)
 		}
 		if e.Type == "docker" {
+			if len(opt.Platforms) > 1 {
+				return nil, nil, errors.Errorf("docker exporter does not currently support exporting manifest lists")
+			}
 			if e.Output == nil {
 				if d.IsMobyDriver() {
 					e.Type = "image"
@@ -465,9 +536,11 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 
 	// setup networkmode
 	switch opt.NetworkMode {
-	case "host", "none":
+	case "host":
 		so.FrontendAttrs["force-network-mode"] = opt.NetworkMode
 		so.AllowedEntitlements = append(so.AllowedEntitlements, entitlements.EntitlementNetworkHost)
+	case "none":
+		so.FrontendAttrs["force-network-mode"] = opt.NetworkMode
 	case "", "default":
 	default:
 		return nil, nil, errors.Errorf("network mode %q not supported by buildkit", opt.NetworkMode)
@@ -535,7 +608,7 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 				hasMobyDriver = true
 			}
 			opt.Platforms = dp.platforms
-			so, release, err := toSolveOpt(ctx, d, multiDriver, opt, w, func(name string) (io.WriteCloser, func(), error) {
+			so, release, err := toSolveOpt(ctx, d, multiDriver, opt, dp.bopts, w, func(name string) (io.WriteCloser, func(), error) {
 				return newDockerLoader(ctx, docker, name, w)
 			})
 			if err != nil {
@@ -579,13 +652,25 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 			dps := m[k]
 			multiDriver := len(m[k]) > 1
 
+			var span trace.Span
+			ctx := ctx
+			if multiTarget {
+				span, ctx = tracing.StartSpan(ctx, k)
+			}
+
 			res := make([]*client.SolveResponse, len(dps))
 			wg := &sync.WaitGroup{}
 			wg.Add(len(dps))
 
 			var pushNames string
 
-			eg.Go(func() error {
+			eg.Go(func() (err error) {
+				defer func() {
+					if span != nil {
+						span.RecordError(err)
+						span.End()
+					}
+				}()
 				pw := progress.WithPrefix(w, "default", false)
 				wg.Wait()
 				select {
@@ -1065,4 +1150,10 @@ func handleLowercaseDockerfile(dir, p string) string {
 		return filepath.Join(filepath.Dir(p), "dockerfile")
 	}
 	return p
+}
+
+func wrapWriteCloser(wc io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
+	return func(map[string]string) (io.WriteCloser, error) {
+		return wc, nil
+	}
 }
