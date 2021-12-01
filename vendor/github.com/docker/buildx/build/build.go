@@ -3,6 +3,8 @@ package build
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,7 +21,8 @@ import (
 	"github.com/docker/buildx/driver"
 	"github.com/docker/buildx/util/imagetools"
 	"github.com/docker/buildx/util/progress"
-	clitypes "github.com/docker/cli/cli/config/types"
+	"github.com/docker/buildx/util/resolver"
+	"github.com/docker/cli/opts"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
@@ -48,26 +51,26 @@ var (
 )
 
 type Options struct {
-	Inputs      Inputs
-	Tags        []string
-	Labels      map[string]string
-	BuildArgs   map[string]string
-	Pull        bool
-	ImageIDFile string
-	ExtraHosts  []string
-	NetworkMode string
+	Inputs Inputs
 
-	NoCache   bool
-	Target    string
-	Platforms []specs.Platform
-	Exports   []client.ExportEntry
-	Session   []session.Attachable
-
-	CacheFrom []client.CacheOptionsEntry
-	CacheTo   []client.CacheOptionsEntry
-
-	Allow []entitlements.Entitlement
-	// DockerTarget
+	Allow        []entitlements.Entitlement
+	BuildArgs    map[string]string
+	CacheFrom    []client.CacheOptionsEntry
+	CacheTo      []client.CacheOptionsEntry
+	CgroupParent string
+	Exports      []client.ExportEntry
+	ExtraHosts   []string
+	ImageIDFile  string
+	Labels       map[string]string
+	NetworkMode  string
+	NoCache      bool
+	Platforms    []specs.Platform
+	Pull         bool
+	Session      []session.Attachable
+	ShmSize      opts.MemBytes
+	Tags         []string
+	Target       string
+	Ulimits      *opts.UlimitOpt
 }
 
 type Inputs struct {
@@ -83,10 +86,7 @@ type DriverInfo struct {
 	Name     string
 	Platform []specs.Platform
 	Err      error
-}
-
-type Auth interface {
-	GetAuthConfig(registryHostname string) (clitypes.AuthConfig, error)
+	ImageOpt imagetools.Opt
 }
 
 type DockerAPI interface {
@@ -143,12 +143,13 @@ func allIndexes(l int) []int {
 func ensureBooted(ctx context.Context, drivers []DriverInfo, idxs []int, pw progress.Writer) ([]*client.Client, error) {
 	clients := make([]*client.Client, len(drivers))
 
+	baseCtx := ctx
 	eg, ctx := errgroup.WithContext(ctx)
 
 	for _, i := range idxs {
 		func(i int) {
 			eg.Go(func() error {
-				c, err := driver.Boot(ctx, drivers[i].Driver, pw)
+				c, err := driver.Boot(ctx, baseCtx, drivers[i].Driver, pw)
 				if err != nil {
 					return err
 				}
@@ -185,8 +186,8 @@ func splitToDriverPairs(availablePlatforms map[string]int, opt map[string]Option
 	return m
 }
 
-func resolveDrivers(ctx context.Context, drivers []DriverInfo, auth Auth, opt map[string]Options, pw progress.Writer) (map[string][]driverPair, []*client.Client, error) {
-	dps, clients, err := resolveDriversBase(ctx, drivers, auth, opt, pw)
+func resolveDrivers(ctx context.Context, drivers []DriverInfo, opt map[string]Options, pw progress.Writer) (map[string][]driverPair, []*client.Client, error) {
+	dps, clients, err := resolveDriversBase(ctx, drivers, opt, pw)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -213,8 +214,7 @@ func resolveDrivers(ctx context.Context, drivers []DriverInfo, auth Auth, opt ma
 	}
 
 	err = eg.Wait()
-	span.RecordError(err)
-	span.End()
+	tracing.FinishWithError(span, err)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -227,7 +227,7 @@ func resolveDrivers(ctx context.Context, drivers []DriverInfo, auth Auth, opt ma
 	return dps, clients, nil
 }
 
-func resolveDriversBase(ctx context.Context, drivers []DriverInfo, auth Auth, opt map[string]Options, pw progress.Writer) (map[string][]driverPair, []*client.Client, error) {
+func resolveDriversBase(ctx context.Context, drivers []DriverInfo, opt map[string]Options, pw progress.Writer) (map[string][]driverPair, []*client.Client, error) {
 	availablePlatforms := map[string]int{}
 	for i, d := range drivers {
 		for _, p := range d.Platform {
@@ -333,7 +333,7 @@ func toRepoOnly(in string) (string, error) {
 	return strings.Join(out, ","), nil
 }
 
-func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Options, bopts gateway.BuildOpts, pw progress.Writer, dl dockerLoadCallback) (solveOpt *client.SolveOpt, release func(), err error) {
+func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Options, bopts gateway.BuildOpts, configDir string, pw progress.Writer, dl dockerLoadCallback) (solveOpt *client.SolveOpt, release func(), err error) {
 	defers := make([]func(), 0, 2)
 	releaseF := func() {
 		for _, f := range defers {
@@ -397,6 +397,10 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 		CacheExports:        cacheTo,
 		CacheImports:        cacheFrom,
 		AllowedEntitlements: opt.Allow,
+	}
+
+	if opt.CgroupParent != "" {
+		so.FrontendAttrs["cgroup-parent"] = opt.CgroupParent
 	}
 
 	if v, ok := opt.BuildArgs["BUILDKIT_MULTI_PLATFORM"]; ok {
@@ -506,6 +510,13 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 	}
 	defers = append(defers, releaseLoad)
 
+	if sharedKey := so.LocalDirs["context"]; sharedKey != "" {
+		if p, err := filepath.Abs(sharedKey); err == nil {
+			sharedKey = filepath.Base(p)
+		}
+		so.SharedKey = sharedKey + ":" + tryNodeIdentifier(configDir)
+	}
+
 	if opt.Pull {
 		so.FrontendAttrs["image-resolve-mode"] = "pull"
 	}
@@ -543,7 +554,7 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 		so.FrontendAttrs["force-network-mode"] = opt.NetworkMode
 	case "", "default":
 	default:
-		return nil, nil, errors.Errorf("network mode %q not supported by buildkit", opt.NetworkMode)
+		return nil, nil, errors.Errorf("network mode %q not supported by buildkit. You can define a custom network for your builder using the network driver-opt in buildx create.", opt.NetworkMode)
 	}
 
 	// setup extrahosts
@@ -553,10 +564,23 @@ func toSolveOpt(ctx context.Context, d driver.Driver, multiDriver bool, opt Opti
 	}
 	so.FrontendAttrs["add-hosts"] = extraHosts
 
+	// setup shm size
+	if opt.ShmSize.Value() > 0 {
+		so.FrontendAttrs["shm-size"] = strconv.FormatInt(opt.ShmSize.Value(), 10)
+	}
+
+	// setup ulimits
+	ulimits, err := toBuildkitUlimits(opt.Ulimits)
+	if err != nil {
+		return nil, nil, err
+	} else if len(ulimits) > 0 {
+		so.FrontendAttrs["ulimit"] = ulimits
+	}
+
 	return &so, releaseF, nil
 }
 
-func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, docker DockerAPI, auth Auth, w progress.Writer) (resp map[string]*client.SolveResponse, err error) {
+func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, docker DockerAPI, configDir string, w progress.Writer) (resp map[string]*client.SolveResponse, err error) {
 	if len(drivers) == 0 {
 		return nil, errors.Errorf("driver required for build")
 	}
@@ -583,7 +607,7 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 		}
 	}
 
-	m, clients, err := resolveDrivers(ctx, drivers, auth, opt, w)
+	m, clients, err := resolveDrivers(ctx, drivers, opt, w)
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +632,7 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 				hasMobyDriver = true
 			}
 			opt.Platforms = dp.platforms
-			so, release, err := toSolveOpt(ctx, d, multiDriver, opt, dp.bopts, w, func(name string) (io.WriteCloser, func(), error) {
+			so, release, err := toSolveOpt(ctx, d, multiDriver, opt, dp.bopts, configDir, w, func(name string) (io.WriteCloser, func(), error) {
 				return newDockerLoader(ctx, docker, name, w)
 			})
 			if err != nil {
@@ -663,12 +687,12 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 			wg.Add(len(dps))
 
 			var pushNames string
+			var insecurePush bool
 
 			eg.Go(func() (err error) {
 				defer func() {
 					if span != nil {
-						span.RecordError(err)
-						span.End()
+						tracing.FinishWithError(span, err)
 					}
 				}()
 				pw := progress.WithPrefix(w, "default", false)
@@ -683,8 +707,9 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 				resp[k] = res[0]
 				respMu.Unlock()
 				if len(res) == 1 {
+					digest := res[0].ExporterResponse["containerimage.digest"]
 					if opt.ImageIDFile != "" {
-						return ioutil.WriteFile(opt.ImageIDFile, []byte(res[0].ExporterResponse["containerimage.digest"]), 0644)
+						return ioutil.WriteFile(opt.ImageIDFile, []byte(digest), 0644)
 					}
 					return nil
 				}
@@ -704,22 +729,41 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 							}
 						}
 						if len(descs) > 0 {
-							itpull := imagetools.New(imagetools.Opt{
-								Auth: auth,
-							})
-
+							var imageopt imagetools.Opt
+							for _, dp := range dps {
+								imageopt = drivers[dp.driverIndex].ImageOpt
+								break
+							}
 							names := strings.Split(pushNames, ",")
+
+							if insecurePush {
+								insecureTrue := true
+								httpTrue := true
+								nn, err := reference.ParseNormalizedNamed(names[0])
+								if err != nil {
+									return err
+								}
+								imageopt.RegistryConfig = map[string]resolver.RegistryConfig{
+									reference.Domain(nn): {
+										Insecure:  &insecureTrue,
+										PlainHTTP: &httpTrue,
+									},
+								}
+							}
+
+							itpull := imagetools.New(imageopt)
+
 							dt, desc, err := itpull.Combine(ctx, names[0], descs)
 							if err != nil {
 								return err
 							}
 							if opt.ImageIDFile != "" {
-								return ioutil.WriteFile(opt.ImageIDFile, []byte(desc.Digest), 0644)
+								if err := ioutil.WriteFile(opt.ImageIDFile, []byte(desc.Digest), 0644); err != nil {
+									return err
+								}
 							}
 
-							itpush := imagetools.New(imagetools.Opt{
-								Auth: auth,
-							})
+							itpush := imagetools.New(imageopt)
 
 							for _, n := range names {
 								nn, err := reference.ParseNormalizedNamed(n)
@@ -763,6 +807,9 @@ func Build(ctx context.Context, drivers []DriverInfo, opt map[string]Options, do
 									names, err := toRepoOnly(e.Attrs["name"])
 									if err != nil {
 										return err
+									}
+									if ok, _ := strconv.ParseBool(e.Attrs["registry.insecure"]); ok {
+										insecurePush = true
 									}
 									e.Attrs["name"] = names
 									e.Attrs["push-by-digest"] = "true"
@@ -1156,4 +1203,29 @@ func wrapWriteCloser(wc io.WriteCloser) func(map[string]string) (io.WriteCloser,
 	return func(map[string]string) (io.WriteCloser, error) {
 		return wc, nil
 	}
+}
+
+var nodeIdentifierMu sync.Mutex
+
+func tryNodeIdentifier(configDir string) (out string) {
+	nodeIdentifierMu.Lock()
+	defer nodeIdentifierMu.Unlock()
+	sessionFile := filepath.Join(configDir, ".buildNodeID")
+	if _, err := os.Lstat(sessionFile); err != nil {
+		if os.IsNotExist(err) { // create a new file with stored randomness
+			b := make([]byte, 8)
+			if _, err := rand.Read(b); err != nil {
+				return out
+			}
+			if err := ioutil.WriteFile(sessionFile, []byte(hex.EncodeToString(b)), 0600); err != nil {
+				return out
+			}
+		}
+	}
+
+	dt, err := ioutil.ReadFile(sessionFile)
+	if err == nil {
+		return string(dt)
+	}
+	return
 }

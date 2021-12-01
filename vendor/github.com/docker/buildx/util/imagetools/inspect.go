@@ -10,8 +10,10 @@ import (
 
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/docker/buildx/util/resolver"
 	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/distribution/reference"
+	"github.com/moby/buildkit/util/tracing"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -20,21 +22,36 @@ type Auth interface {
 }
 
 type Opt struct {
-	Auth Auth
+	Auth           Auth
+	RegistryConfig map[string]resolver.RegistryConfig
 }
 
 type Resolver struct {
-	r remotes.Resolver
+	auth  docker.Authorizer
+	hosts docker.RegistryHosts
 }
 
 func New(opt Opt) *Resolver {
-	resolver := docker.NewResolver(docker.ResolverOptions{
-		Client:      http.DefaultClient,
-		Credentials: toCredentialsFunc(opt.Auth),
-	})
 	return &Resolver{
-		r: resolver,
+		auth:  docker.NewDockerAuthorizer(docker.WithAuthCreds(toCredentialsFunc(opt.Auth)), docker.WithAuthClient(http.DefaultClient)),
+		hosts: resolver.NewRegistryConfig(opt.RegistryConfig),
 	}
+}
+
+func (r *Resolver) resolver() remotes.Resolver {
+	return docker.NewResolver(docker.ResolverOptions{
+		Hosts: func(domain string) ([]docker.RegistryHost, error) {
+			res, err := r.hosts(domain)
+			if err != nil {
+				return nil, err
+			}
+			for i := range res {
+				res[i].Authorizer = r.auth
+			}
+			return res, nil
+		},
+		Client: tracing.DefaultClient,
+	})
 }
 
 func (r *Resolver) Resolve(ctx context.Context, in string) (string, ocispec.Descriptor, error) {
@@ -43,7 +60,7 @@ func (r *Resolver) Resolve(ctx context.Context, in string) (string, ocispec.Desc
 		return "", ocispec.Descriptor{}, err
 	}
 
-	in, desc, err := r.r.Resolve(ctx, ref.String())
+	in, desc, err := r.resolver().Resolve(ctx, ref.String())
 	if err != nil {
 		return "", ocispec.Descriptor{}, err
 	}
@@ -65,7 +82,7 @@ func (r *Resolver) Get(ctx context.Context, in string) ([]byte, ocispec.Descript
 }
 
 func (r *Resolver) GetDescriptor(ctx context.Context, in string, desc ocispec.Descriptor) ([]byte, error) {
-	fetcher, err := r.r.Fetcher(ctx, in)
+	fetcher, err := r.resolver().Fetcher(ctx, in)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package bake
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,6 +28,11 @@ var gitURLPathWithFragmentSuffix = regexp.MustCompile(`\.git(?:#.+)?$`)
 type File struct {
 	Name string
 	Data []byte
+}
+
+type Override struct {
+	Value    string
+	ArrValue []string
 }
 
 func defaultFilenames() []string {
@@ -61,29 +67,42 @@ func ReadLocalFiles(names []string) ([]File, error) {
 	return out, nil
 }
 
-func ReadTargets(ctx context.Context, files []File, targets, overrides []string, defaults map[string]string) (map[string]*Target, error) {
+func ReadTargets(ctx context.Context, files []File, targets, overrides []string, defaults map[string]string) (map[string]*Target, []*Group, error) {
 	c, err := ParseFiles(files, defaults)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	o, err := c.newOverrides(overrides)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	m := map[string]*Target{}
 	for _, n := range targets {
 		for _, n := range c.ResolveGroup(n) {
 			t, err := c.ResolveTarget(n, o)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if t != nil {
 				m[n] = t
 			}
 		}
 	}
-	return m, nil
+
+	var g []*Group
+	if len(targets) == 0 || (len(targets) == 1 && targets[0] == "default") {
+		for _, group := range c.Groups {
+			if group.Name != "default" {
+				continue
+			}
+			g = []*Group{{Targets: group.Targets}}
+		}
+	} else {
+		g = []*Group{{Targets: targets}}
+	}
+
+	return m, g, nil
 }
 
 func ParseFiles(files []File, defaults map[string]string) (_ *Config, err error) {
@@ -240,8 +259,8 @@ func (c Config) expandTargets(pattern string) ([]string, error) {
 	return names, nil
 }
 
-func (c Config) newOverrides(v []string) (map[string]*Target, error) {
-	m := map[string]*Target{}
+func (c Config) newOverrides(v []string) (map[string]map[string]Override, error) {
+	m := map[string]map[string]Override{}
 	for _, v := range v {
 
 		parts := strings.SplitN(v, "=", 2)
@@ -260,73 +279,41 @@ func (c Config) newOverrides(v []string) (map[string]*Target, error) {
 			return nil, err
 		}
 
+		kk := strings.SplitN(parts[0], ".", 2)
+
 		for _, name := range names {
 			t, ok := m[name]
 			if !ok {
-				t = &Target{}
+				t = map[string]Override{}
+				m[name] = t
 			}
 
+			o := t[kk[1]]
+
 			switch keys[1] {
-			case "context":
-				t.Context = &parts[1]
-			case "dockerfile":
-				t.Dockerfile = &parts[1]
+			case "output", "cache-to", "cache-from", "tags", "platform", "secrets", "ssh":
+				if len(parts) == 2 {
+					o.ArrValue = append(o.ArrValue, parts[1])
+				}
 			case "args":
 				if len(keys) != 3 {
 					return nil, errors.Errorf("invalid key %s, args requires name", parts[0])
 				}
-				if t.Args == nil {
-					t.Args = map[string]string{}
-				}
 				if len(parts) < 2 {
 					v, ok := os.LookupEnv(keys[2])
-					if ok {
-						t.Args[keys[2]] = v
+					if !ok {
+						continue
 					}
-				} else {
-					t.Args[keys[2]] = parts[1]
+					o.Value = v
 				}
-			case "labels":
-				if len(keys) != 3 {
-					return nil, errors.Errorf("invalid key %s, lanels requires name", parts[0])
-				}
-				if t.Labels == nil {
-					t.Labels = map[string]string{}
-				}
-				t.Labels[keys[2]] = parts[1]
-			case "tags":
-				t.Tags = append(t.Tags, parts[1])
-			case "cache-from":
-				t.CacheFrom = append(t.CacheFrom, parts[1])
-			case "cache-to":
-				t.CacheTo = append(t.CacheTo, parts[1])
-			case "target":
-				s := parts[1]
-				t.Target = &s
-			case "secrets":
-				t.Secrets = append(t.Secrets, parts[1])
-			case "ssh":
-				t.SSH = append(t.SSH, parts[1])
-			case "platform":
-				t.Platforms = append(t.Platforms, parts[1])
-			case "output":
-				t.Outputs = append(t.Outputs, parts[1])
-			case "no-cache":
-				noCache, err := strconv.ParseBool(parts[1])
-				if err != nil {
-					return nil, errors.Errorf("invalid value %s for boolean key no-cache", parts[1])
-				}
-				t.NoCache = &noCache
-			case "pull":
-				pull, err := strconv.ParseBool(parts[1])
-				if err != nil {
-					return nil, errors.Errorf("invalid value %s for boolean key pull", parts[1])
-				}
-				t.Pull = &pull
+				fallthrough
 			default:
-				return nil, errors.Errorf("unknown key: %s", keys[1])
+				if len(parts) == 2 {
+					o.Value = parts[1]
+				}
 			}
-			m[name] = t
+
+			t[kk[1]] = o
 		}
 	}
 	return m, nil
@@ -358,7 +345,7 @@ func (c Config) group(name string, visited map[string]struct{}) []string {
 	return targets
 }
 
-func (c Config) ResolveTarget(name string, overrides map[string]*Target) (*Target, error) {
+func (c Config) ResolveTarget(name string, overrides map[string]map[string]Override) (*Target, error) {
 	t, err := c.target(name, map[string]struct{}{}, overrides)
 	if err != nil {
 		return nil, err
@@ -374,7 +361,7 @@ func (c Config) ResolveTarget(name string, overrides map[string]*Target) (*Targe
 	return t, nil
 }
 
-func (c Config) target(name string, visited map[string]struct{}, overrides map[string]*Target) (*Target, error) {
+func (c Config) target(name string, visited map[string]struct{}, overrides map[string]map[string]Override) (*Target, error) {
 	if _, ok := visited[name]; ok {
 		return nil, nil
 	}
@@ -404,9 +391,10 @@ func (c Config) target(name string, visited map[string]struct{}, overrides map[s
 	m.Merge(tt)
 	m.Merge(t)
 	tt = m
-	if override, ok := overrides[name]; ok {
-		tt.Merge(override)
+	if err := tt.AddOverrides(overrides[name]); err != nil {
+		return nil, err
 	}
+
 	tt.normalize()
 	return tt, nil
 }
@@ -505,6 +493,81 @@ func (t *Target) Merge(t2 *Target) {
 		t.NoCache = t2.NoCache
 	}
 	t.Inherits = append(t.Inherits, t2.Inherits...)
+}
+
+func (t *Target) AddOverrides(overrides map[string]Override) error {
+	for key, o := range overrides {
+		value := o.Value
+		keys := strings.SplitN(key, ".", 2)
+		switch keys[0] {
+		case "context":
+			t.Context = &value
+		case "dockerfile":
+			t.Dockerfile = &value
+		case "args":
+			if len(keys) != 2 {
+				return errors.Errorf("args require name")
+			}
+			if t.Args == nil {
+				t.Args = map[string]string{}
+			}
+			t.Args[keys[1]] = value
+
+		case "labels":
+			if len(keys) != 2 {
+				return errors.Errorf("labels require name")
+			}
+			if t.Labels == nil {
+				t.Labels = map[string]string{}
+			}
+			t.Labels[keys[1]] = value
+		case "tags":
+			t.Tags = o.ArrValue
+		case "cache-from":
+			t.CacheFrom = o.ArrValue
+		case "cache-to":
+			t.CacheTo = o.ArrValue
+		case "target":
+			t.Target = &value
+		case "secrets":
+			t.Secrets = o.ArrValue
+		case "ssh":
+			t.SSH = o.ArrValue
+		case "platform":
+			t.Platforms = o.ArrValue
+		case "output":
+			t.Outputs = o.ArrValue
+		case "no-cache":
+			noCache, err := strconv.ParseBool(value)
+			if err != nil {
+				return errors.Errorf("invalid value %s for boolean key no-cache", value)
+			}
+			t.NoCache = &noCache
+		case "pull":
+			pull, err := strconv.ParseBool(value)
+			if err != nil {
+				return errors.Errorf("invalid value %s for boolean key pull", value)
+			}
+			t.Pull = &pull
+		case "push":
+			_, err := strconv.ParseBool(value)
+			if err != nil {
+				return errors.Errorf("invalid value %s for boolean key push", value)
+			}
+			if len(t.Outputs) == 0 {
+				t.Outputs = append(t.Outputs, "type=image,push=true")
+			} else {
+				for i, output := range t.Outputs {
+					if typ := parseOutputType(output); typ == "image" || typ == "registry" {
+						t.Outputs[i] = t.Outputs[i] + ",push=" + value
+					}
+				}
+			}
+		default:
+			return errors.Errorf("unknown key: %s", keys[0])
+		}
+	}
+	return nil
 }
 
 func TargetsToBuildOpt(m map[string]*Target, inp *Input) (map[string]build.Options, error) {
@@ -665,4 +728,21 @@ func removeDupes(s []string) []string {
 
 func isRemoteResource(str string) bool {
 	return urlutil.IsGitURL(str) || urlutil.IsURL(str)
+}
+
+func parseOutputType(str string) string {
+	csvReader := csv.NewReader(strings.NewReader(str))
+	fields, err := csvReader.Read()
+	if err != nil {
+		return ""
+	}
+	for _, field := range fields {
+		parts := strings.SplitN(field, "=", 2)
+		if len(parts) == 2 {
+			if parts[0] == "type" {
+				return parts[1]
+			}
+		}
+	}
+	return ""
 }
