@@ -117,16 +117,16 @@ func (r *ImagineRecipe) GetTag(variantName, configPath, contextPath string) (str
 
 	switch r.BuildSpec.TagMode {
 	case "GitTreeHash":
-		return r.makeGitCommitHashTag(configPath, contextPath, variantName, suffix)
+		return r.makeGitTreeHashTag(configPath, contextPath, variantName, suffix)
 	case "GitCommitHash":
-		return r.makeGitTreeHashTag(configPath, configPath, variantName, suffix)
+		return r.makeGitCommitHashTag(configPath, configPath, variantName, suffix)
 	case "GitTagSemVer":
 		return r.makeGitTagSemVerTag(configPath, configPath, variantName, suffix)
 	default:
 		return "", fmt.Errorf("unknown '.spec.tagMode' (%q)", r.BuildSpec.TagMode)
 	}
 }
-func (r *ImagineRecipe) makeGitCommitHashTag(configPath, contextPath, variantName, suffix string) (string, error) {
+func (r *ImagineRecipe) makeGitTreeHashTag(configPath, contextPath, variantName, suffix string) (string, error) {
 	configTreeHash, err := r.Git.TreeHashForHead(configPath, true)
 	if err != nil {
 		return "", err
@@ -143,7 +143,7 @@ func (r *ImagineRecipe) makeGitCommitHashTag(configPath, contextPath, variantNam
 	return fmt.Sprintf("%s.%s.%s", variantName, configTreeHash, contextTreeHash) + suffix, nil
 }
 
-func (r *ImagineRecipe) makeGitTreeHashTag(_, _, variantName, suffix string) (string, error) {
+func (r *ImagineRecipe) makeGitCommitHashTag(_, _, variantName, suffix string) (string, error) {
 	commitHash, err := r.Git.CommitHashForHead(true)
 	if err != nil {
 		return "", err
