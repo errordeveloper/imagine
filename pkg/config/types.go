@@ -42,6 +42,8 @@ type WithBuildInstructions struct {
 
 	Target   *string `json:"target"`
 	Untagged *bool   `json:"untagged"`
+
+	Labels map[string]string `json:"labels"`
 }
 
 type Secret struct {

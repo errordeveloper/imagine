@@ -308,8 +308,9 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 	mainTarget.Labels[buildConfigTreeHashLabel] = configTreeHash
 	mainTarget.Labels[contextTreeHashLabel] = contextTreeHash
 
-	// TODO: label for HEAD - this might skew builds that are fully-reproducible,
-	// maybe it's not a good idea or it should be optional?
+	for k, v := range buildInstructions.Labels {
+		mainTarget.Labels[k] = v
+	}
 
 	shouldPush := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)
 	r.setOutputs(mainTargetName, mainTarget, shouldPush)

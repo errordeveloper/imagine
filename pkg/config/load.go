@@ -98,6 +98,14 @@ func (o *BuildSpec) ApplyDefaultsAndValidate() error {
 			o.Untagged = new(bool)
 			*o.Untagged = false
 		}
+
+		if len(o.Labels) != 0 {
+			for k := range o.Labels {
+				if strings.HasPrefix(k, "com.github.errordeveloper.imagine.") {
+					return fmt.Errorf("label key %q is reseved for internal use", k)
+				}
+			}
+		}
 	}
 
 	if o.TagMode == "" {
