@@ -106,6 +106,16 @@ func (f *Flags) RunBuildCmd() error {
 	// TODO:
 	// - [x] new tagging convetion
 	// - [ ] implement metadata labels
+	//    - [x] build config contents and tree hash
+	//	  -	[x] context tree hash
+	//    - [ ] (post-mvp) additonal info
+	//			NB: any of this will not carry any guarantees, it should be trated as hints;
+	//			since it is unlikely to make build results reproducible, it should be stricly optional
+	//       - [ ] remote URL (with an option to specify prefer remote name(s))
+	//       - [ ] optionally resolve commit hashes for non-tagged commits
+	//		 - [ ] resolve commit hashes for tagged commits
+	//		 - [ ] optionaly resolve branch names
+	//		 - [ ] grab metadata from GitHub event, when used in GitHub Actions
 	// - [x] store config as loaded from disk
 	// - [x] rebuilder must check all variants
 	// - [x] compose multi-target recipe directly from the config
@@ -128,6 +138,7 @@ func (f *Flags) RunBuildCmd() error {
 	//    - [ ] enable non-semver tags
 	// - [ ] (post-mvp) should unnamed/main variants be allowed along with named variants?
 	// - [ ] (post-mvp) export prefix
+	// - [ ] (post-mvp) rewrite git package using a library
 
 	ir := &recipe.ImagineRecipe{
 		Push:      f.Push,
