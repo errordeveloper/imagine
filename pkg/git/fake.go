@@ -16,7 +16,10 @@ type FakeRepo struct {
 	IsDevVal             bool
 }
 
-func getHash(hash string, short bool) (string, error) {
+func getHash(hash string, short bool, caller string) (string, error) {
+	if hash == "" {
+		return "", fmt.Errorf("empty hash (%s)", caller)
+	}
 	if short {
 		return hash[:6], nil
 	}
@@ -25,17 +28,17 @@ func getHash(hash string, short bool) (string, error) {
 
 func (f *FakeRepo) TreeHashForHead(path string, short bool) (string, error) {
 	if path == "" {
-		return getHash(f.TreeHashForHeadRoot, short)
+		return getHash(f.TreeHashForHeadRoot, short, "TreeHashForHeadRoot")
 	}
 	v, ok := f.TreeHashForHeadVal[path]
 	if !ok {
 		return "", fmt.Errorf("%s not in fake tree (TreeHashForHead)", path)
 	}
-	return getHash(v, short)
+	return getHash(v, short, fmt.Sprintf("TreeHashForHeadVal[%s]", path))
 }
 
 func (f *FakeRepo) CommitHashForHead(short bool) (string, error) {
-	return getHash(f.CommitHashForHeadVal, short)
+	return getHash(f.CommitHashForHeadVal, short, "CommitHashForHead")
 }
 
 func (f *FakeRepo) TagsForHead() ([]string, error) {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/errordeveloper/imagine/pkg/config"
 	"github.com/errordeveloper/imagine/pkg/git"
-	"github.com/errordeveloper/imagine/pkg/recipe"
+
 	. "github.com/errordeveloper/imagine/pkg/recipe"
 )
 
@@ -161,7 +161,7 @@ func TestTagging(t *testing.T) {
 
 	newImagineRecipe := func(repo *git.FakeRepo) *ImagineRecipe {
 		dir := ""
-		ir := &recipe.ImagineRecipe{
+		ir := &ImagineRecipe{
 			WorkDir: commonWD,
 			BuildSpec: &config.BuildSpec{
 				Name: "image-1",
@@ -316,7 +316,7 @@ func TestManifestsWithVariants(t *testing.T) {
 
 	newImagineRecipe := func(repo *git.FakeRepo) *ImagineRecipe {
 		dir := "examples/image-1"
-		ir := &recipe.ImagineRecipe{
+		ir := &ImagineRecipe{
 			WorkDir: commonWD,
 			BuildSpec: &config.BuildSpec{
 				Name: "image-1",
@@ -335,6 +335,7 @@ func TestManifestsWithVariants(t *testing.T) {
 
 		ir.Config.Path = "dummy.yaml"
 
+		repo.CommitHashForHeadVal = "15b881c016c1d81f924cc0c1ae002333253f0991"
 		repo.TreeHashForHeadRoot = "16c315243fd31c00b80c188123099501ae2ccf91"
 		repo.TreeHashForHeadVal = map[string]string{
 			"dummy.yaml":       "613919533ebd03d6bafbd538ccad3a4acea9b761",
@@ -367,12 +368,12 @@ func TestManifestsWithVariants(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		g.Expect(m.Group).To(HaveKey("default"))
-		g.Expect(m.Group["default"].Targets).To(ConsistOf("index", "image-1-foo"))
+		g.Expect(m.Group["default"].Targets).To(ConsistOf("index-image-1", "image-1-foo"))
 
 		g.Expect(m.Target).To(HaveLen(2))
 
-		g.Expect(m.Target).To(HaveKey("index"))
-		g.Expect(m.Target["index"].Tags).To(HaveLen(0))
+		g.Expect(m.Target).To(HaveKey("index-image-1"))
+		g.Expect(m.Target["index-image-1"].Tags).To(HaveLen(0))
 
 		g.Expect(m.Target).To(HaveKey("image-1-foo"))
 		g.Expect(m.Target["image-1-foo"].Tags).To(HaveLen(0))
@@ -387,12 +388,12 @@ func TestManifestsWithVariants(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		g.Expect(m.Group).To(HaveKey("default"))
-		g.Expect(m.Group["default"].Targets).To(ConsistOf("index", "image-1-foo"))
+		g.Expect(m.Group["default"].Targets).To(ConsistOf("index-image-1", "image-1-foo"))
 
 		g.Expect(m.Target).To(HaveLen(2))
 
-		g.Expect(m.Target).To(HaveKey("index"))
-		g.Expect(m.Target["index"].Tags).To(ConsistOf(
+		g.Expect(m.Target).To(HaveKey("index-image-1"))
+		g.Expect(m.Target["index-image-1"].Tags).To(ConsistOf(
 			"reg1.example.com/imagine/image-1:index.15b881",
 			"reg2.example.org/imagine/image-1:index.15b881",
 		))
@@ -414,12 +415,12 @@ func TestManifestsWithVariants(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		g.Expect(m.Group).To(HaveKey("default"))
-		g.Expect(m.Group["default"].Targets).To(ConsistOf("image-1-foo-test", "image-1-foo", "index"))
+		g.Expect(m.Group["default"].Targets).To(ConsistOf("image-1-foo-test", "image-1-foo", "index-image-1"))
 
 		g.Expect(m.Target).To(HaveLen(3))
 		g.Expect(m.Target).To(HaveKey("image-1-foo"))
 		g.Expect(m.Target).To(HaveKey("image-1-foo-test"))
-		g.Expect(m.Target).To(HaveKey("index"))
+		g.Expect(m.Target).To(HaveKey("index-image-1"))
 
 		g.Expect(m.Target["image-1-foo"].Tags).To(ConsistOf(
 			"reg1.example.com/imagine/image-1:foo.613919.16c315",
@@ -438,7 +439,7 @@ func TestManifestsWithVariants(t *testing.T) {
 			"group": {
 			  "default": {
 				"targets": [
-				  "index",
+				  "index-image-1",
 				  "image-1-foo-test",
 				  "image-1-foo"
 				]
@@ -475,7 +476,7 @@ func TestManifestsWithVariants(t *testing.T) {
 				  "linux/arm64"
 				]
 			  },
-			  "index": {
+			  "index-image-1": {
 				"context": "",
 				"dockerfile-inline": "FROM scratch\nCOPY index-image-1.json /index.json\n",
 				"labels": {
@@ -483,6 +484,10 @@ func TestManifestsWithVariants(t *testing.T) {
 				  "com.github.errordeveloper.imagine.indexSchemaVersion": "v1alpha1",
 				  "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
 				},
+				"tags": [
+                  "reg1.example.com/imagine/image-1:index.15b881",
+                  "reg2.example.org/imagine/image-1:index.15b881"
+                ],
 				"output": [
 				  "type=image,push=false"
 				]

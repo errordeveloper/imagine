@@ -150,7 +150,7 @@ func (r *ImagineRecipe) makeGitCommitHashTag(_, _, variantName, suffix string) (
 	}
 
 	if variantName == "" {
-		return fmt.Sprintf("%s", commitHash) + suffix, nil
+		return commitHash + suffix, nil
 	}
 	return fmt.Sprintf("%s.%s", variantName, commitHash) + suffix, nil
 }
@@ -228,10 +228,10 @@ func (r *ImagineRecipe) newBakeTarget(buildInstructions *config.WithBuildInstruc
 }
 
 const (
-	ImageTestStageName   = "test"
-	DefaultBakeGroup     = "default"
-	BakeTestTargetSuffix = "-test"
-	IndexTargetName      = "index"
+	ImageTestStageName    = "test"
+	DefaultBakeGroup      = "default"
+	BakeTestTargetSuffix  = "-test"
+	IndexTargetNamePrefix = "index-"
 )
 
 func (r *ImagineRecipe) commonLabels() map[string]string {
@@ -241,7 +241,8 @@ func (r *ImagineRecipe) commonLabels() map[string]string {
 	}
 }
 
-func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string) (*bake.Target, error) {
+func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string) (*bake.Target, string, error) {
+	indexTargetName := IndexTargetNamePrefix + imageName
 	indexTarget := &bake.Target{
 		Context:          new(string),
 		DockerfileInline: new(string),
@@ -254,15 +255,15 @@ func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string
 
 	refs, err := r.RegistryIndexRefs(registries...)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	indexTarget.Tags = refs
 
 	shouldPush := (r.Push && len(registries) != 0)
-	r.setOutputs(IndexTargetName, indexTarget, shouldPush)
+	r.setOutputs(indexTargetName, indexTarget, shouldPush)
 
-	return indexTarget, nil
+	return indexTarget, indexTargetName, nil
 }
 
 func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string, buildInstructions *config.WithBuildInstructions, registries ...string) (bakeTargetMap, []string, error) {
@@ -373,7 +374,7 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 		}, nil
 	}
 
-	indexBakeTarget, err := r.indexAsBakeTarget(r.Name, registries...)
+	indexBakeTarget, indexTargetName, err := r.indexAsBakeTarget(r.Name, registries...)
 	if err != nil {
 		return nil, err
 	}
@@ -381,10 +382,10 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	manifest := &BakeManifest{
 		Group: bakeGroupMap{
 			DefaultBakeGroup: &bake.Group{
-				Targets: []string{IndexTargetName},
+				Targets: []string{indexTargetName},
 			},
 		},
-		Target: bakeTargetMap{IndexTargetName: indexBakeTarget},
+		Target: bakeTargetMap{indexTargetName: indexBakeTarget},
 	}
 
 	for _, variant := range r.Variants {
