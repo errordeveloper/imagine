@@ -2,6 +2,7 @@
   "group": {
     "default": {
       "targets": [
+        "index-imagine-alpine-example2",
         "imagine-alpine-example2-a",
         "imagine-alpine-example2-b-test",
         "imagine-alpine-example2-b",
@@ -12,7 +13,7 @@
   "target": {
     "imagine-alpine-example2-a": {
       "context": "/Users/ilya/Code/imagine/cmd/testdata/empty",
-      "dockerfile-inline": "FROM alpine\nRUN echo $variant \u003e /etc/variant",
+      "dockerfile-inline": "FROM alpine\nRUN echo $variant > /etc/variant",
       "labels": {
         "com.github.errordeveloper.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUyCiAgZGlyOiAuL2V4YW1wbGVzL2FscGluZQogIHZhcmlhbnRzOgogIC0gbmFtZTogYQogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBhCiAgICAgIGRpcjogLi9jbWQvdGVzdGRhdGEvZW1wdHkKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBib2R5OiAiRlJPTSBhbHBpbmVcblJVTiBlY2hvICR2YXJpYW50ID4gL2V0Yy92YXJpYW50IgogIC0gbmFtZTogYgogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBiCiAgICAgIHRlc3Q6IHRydWUKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBwYXRoOiBEb2NrZXJmaWxlLnNwZWNpYWwKICAtIG5hbWU6IGMKICAgIHdpdGg6CiAgICAgIHVudGFnZ2VkOiB0cnVlCiAgICAgIGFyZ3M6CiAgICAgICAgdmFyaWFudDogYwo=",
         "com.github.errordeveloper.imagine.buildConfig.TreeHash": "817282845ac484b30e8a5c71a2e4836652aff484",
@@ -70,6 +71,21 @@
       ],
       "output": [
         "type=image,push=false"
+      ]
+    },
+    "index-imagine-alpine-example2": {
+      "context": "",
+      "dockerfile-inline": "FROM scratch\nCOPY index-imagine-alpine-example2.json /index.json\n",
+      "labels": {
+        "com.github.errordeveloper.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUyCiAgZGlyOiAuL2V4YW1wbGVzL2FscGluZQogIHZhcmlhbnRzOgogIC0gbmFtZTogYQogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBhCiAgICAgIGRpcjogLi9jbWQvdGVzdGRhdGEvZW1wdHkKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBib2R5OiAiRlJPTSBhbHBpbmVcblJVTiBlY2hvICR2YXJpYW50ID4gL2V0Yy92YXJpYW50IgogIC0gbmFtZTogYgogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBiCiAgICAgIHRlc3Q6IHRydWUKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBwYXRoOiBEb2NrZXJmaWxlLnNwZWNpYWwKICAtIG5hbWU6IGMKICAgIHdpdGg6CiAgICAgIHVudGFnZ2VkOiB0cnVlCiAgICAgIGFyZ3M6CiAgICAgICAgdmFyaWFudDogYwo=",
+        "com.github.errordeveloper.imagine.indexSchemaVersion": "v1alpha1",
+        "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
+      },
+      "tags": [
+        "example.com/test3/imagine-alpine-example2:index.d8ffeca"
+      ],
+      "output": [
+        "type=image,push=true"
       ]
     }
   }
