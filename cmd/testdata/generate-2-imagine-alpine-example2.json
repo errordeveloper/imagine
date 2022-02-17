@@ -82,7 +82,7 @@
         "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
       },
       "tags": [
-        "example.com/test3/imagine-alpine-example2:index.d8ffeca"
+        "example.com/test3/imagine-alpine-example2:index.d4c5a13"
       ],
       "output": [
         "type=image,push=true"

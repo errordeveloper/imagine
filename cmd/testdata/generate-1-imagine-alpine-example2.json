@@ -79,7 +79,7 @@
         "com.github.errordeveloper.imagine.schemaVersion": "v1alpha1"
       },
       "tags": [
-        "example.com/test2/imagine-alpine-example2:index.d8ffeca"
+        "example.com/test2/imagine-alpine-example2:index.d4c5a13"
       ],
       "output": [
         "type=docker,dest=/Users/ilya/Code/imagine/image-index-imagine-alpine-example2.oci"

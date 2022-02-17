@@ -135,7 +135,7 @@ func TestGenerateCmd(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 				actualOutputData, err := os.ReadFile(result.actualOutput)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(actualOutputData).To(MatchJSON(expectedOutputData))
+				g.Expect(actualOutputData).To(MatchJSON(expectedOutputData), "fixture: "+result.expectedOutput)
 			}
 		}
 	}
