@@ -2,15 +2,18 @@ package generate_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
 	. "github.com/onsi/gomega"
 
 	. "github.com/errordeveloper/imagine/cmd/generate"
+	"github.com/errordeveloper/imagine/pkg/recipe"
 )
 
 func TestGenerateCmd(t *testing.T) {
@@ -131,16 +134,38 @@ func TestGenerateCmd(t *testing.T) {
 		} else {
 			g.Expect(err).NotTo(HaveOccurred())
 			if result.expectedOutput != "" {
-				expectedOutputData, err := os.ReadFile(result.expectedOutput)
-				g.Expect(err).NotTo(HaveOccurred())
-				actualOutputData, err := os.ReadFile(result.actualOutput)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(actualOutputData).To(MatchJSON(expectedOutputData), "fixture: "+result.expectedOutput)
+				matchFixture(g, result.actualOutput, result.expectedOutput)
 			}
 		}
 	}
 
 	h.cleanup()
+}
+
+func matchFixture(g *WithT, actualOutput, expectedOutput string) {
+	actualOutputData, err := os.ReadFile(actualOutput)
+	g.Expect(err).NotTo(HaveOccurred())
+	actualOutputObj := &recipe.BakeManifest{}
+	g.Expect(json.Unmarshal(actualOutputData, actualOutputObj)).To(Succeed())
+
+	expectedOutputData, err := os.ReadFile(expectedOutput)
+	g.Expect(err).NotTo(HaveOccurred())
+	expectedOutputObj := &recipe.BakeManifest{}
+	g.Expect(json.Unmarshal(expectedOutputData, expectedOutputObj)).To(Succeed())
+
+	for k := range expectedOutputObj.Target {
+		if strings.HasPrefix(k, recipe.IndexTargetNamePrefix) {
+			// index tag changes all the time, so it needs to be igrnored
+			expectedOutputObj.Target[k].Tags = actualOutputObj.Target[k].Tags
+		}
+	}
+
+	actualOutputData, err = json.Marshal(actualOutputObj)
+	g.Expect(err).NotTo(HaveOccurred())
+	expectedOutputData, err = json.Marshal(expectedOutputObj)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(actualOutputData).To(MatchJSON(expectedOutputData), "fixture: "+expectedOutput)
 }
 
 type helper struct {
