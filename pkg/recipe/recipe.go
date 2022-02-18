@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/docker/buildx/bake"
 
@@ -250,7 +251,21 @@ func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string
 
 	indexTarget.Labels[indexSchemaVersionLabel] = indexSchemaVersion
 
-	*indexTarget.DockerfileInline = fmt.Sprintf("FROM scratch\nCOPY index-%s.json /index.json\n", r.Name)
+	index := struct{}{}
+
+	data, err := json.Marshal(index)
+	if err != nil {
+		return nil, "", err
+	}
+
+	dockerfileInline := []string{
+		"# syntax = docker/dockerfile:1.3-labs",
+		"FROM scratch",
+		"COPY <<-EOF /index.json",
+		string(data),
+		"EOF",
+	}
+	*indexTarget.DockerfileInline = strings.Join(dockerfileInline, "\n")
 
 	refs, err := r.RegistryIndexRefs(registries...)
 	if err != nil {
@@ -401,19 +416,6 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	return manifest, nil
 }
 
-func (r *ImagineRecipe) WriteIndex(filename string) error {
-	index := struct{}{}
-
-	data, err := json.Marshal(index)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(filename, data, 0644)
-}
-
 func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string) (string, func(), error) {
 	if err := os.MkdirAll(stateDirPath, 0755); err != nil {
 		return "", func() {}, err
@@ -435,13 +437,6 @@ func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string)
 	}
 
 	if err := m.WriteFile(manifest); err != nil {
-		cleanup()
-		return "", func() {}, err
-	}
-
-	index := filepath.Join(tempDir, fmt.Sprintf("index-%s.json", r.Name))
-
-	if err := r.WriteIndex(index); err != nil {
 		cleanup()
 		return "", func() {}, err
 	}

@@ -72,7 +72,7 @@
     },
     "index-imagine-alpine-example2": {
       "context": "",
-      "dockerfile-inline": "FROM scratch\nCOPY index-imagine-alpine-example2.json /index.json\n",
+      "dockerfile-inline": "# syntax = docker/dockerfile:1.3-labs\nFROM scratch\nCOPY \u003c\u003c-EOF /index.json\n{}\nEOF",
       "labels": {
         "com.github.errordeveloper.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUyCiAgZGlyOiAuL2V4YW1wbGVzL2FscGluZQogIHZhcmlhbnRzOgogIC0gbmFtZTogYQogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBhCiAgICAgIGRpcjogLi9jbWQvdGVzdGRhdGEvZW1wdHkKICAgICAgZG9ja2VyZmlsZToKICAgICAgICBib2R5OiAiRlJPTSBhbHBpbmVcblJVTiBlY2hvICR2YXJpYW50ID4gL2V0Yy92YXJpYW50IgogIC0gbmFtZTogYgogICAgd2l0aDoKICAgICAgYXJnczoKICAgICAgICB2YXJpYW50OiBiCiAgICAgIGRvY2tlcmZpbGU6CiAgICAgICAgcGF0aDogRG9ja2VyZmlsZS5zcGVjaWFsCiAgLSBuYW1lOiBjCiAgICB3aXRoOgogICAgICBhcmdzOgogICAgICAgIHZhcmlhbnQ6IGMK",
         "com.github.errordeveloper.imagine.indexSchemaVersion": "v1alpha1",
