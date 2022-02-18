@@ -3,7 +3,6 @@ package recipe
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -412,14 +411,14 @@ func (r *ImagineRecipe) WriteIndex(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, data, 0644)
+	return os.WriteFile(filename, data, 0644)
 }
 
 func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string) (string, func(), error) {
 	if err := os.MkdirAll(stateDirPath, 0755); err != nil {
 		return "", func() {}, err
 	}
-	tempDir, err := ioutil.TempDir(stateDirPath, "build-*")
+	tempDir, err := os.MkdirTemp(stateDirPath, "build-*")
 	if err != nil {
 		return "", func() {}, err
 	}
@@ -474,5 +473,5 @@ func (m *BakeManifest) WriteFile(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, data, 0644)
+	return os.WriteFile(filename, data, 0644)
 }

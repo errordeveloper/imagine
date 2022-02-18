@@ -3,7 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,7 +13,7 @@ import (
 func Load(path string) (*BuildConfig, string, error) {
 	obj := &BuildConfig{}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("unable to open config file %q: %w", path, err)
 	}
