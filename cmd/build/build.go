@@ -18,13 +18,12 @@ import (
 
 type Flags struct {
 	*config.CommonFlags
-
 	Builder string
 
 	Force bool
 
-	WriteSummary  bool
-	SummaryFormat string
+	// WriteSummary  bool
+	// SummaryFormat string
 }
 
 const (
@@ -58,9 +57,9 @@ func BuildCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuilding")
 
-	cmd.Flags().BoolVar(&flags.WriteSummary, "write-summary", true, "write build summary upon success")
+	// cmd.Flags().BoolVar(&flags.WriteSummary, "write-summary", true, "write build summary upon success")
 
-	cmd.Flags().StringVar(&flags.SummaryFormat, "summary-format", "TextFiles", "format of build summary (YAML, TextFiles)")
+	// cmd.Flags().StringVar(&flags.SummaryFormat, "summary-format", "TextFiles", "format of build summary (YAML, TextFiles)")
 
 	return cmd
 }
@@ -120,12 +119,15 @@ func (f *Flags) RunBuildCmd() error {
 	// - [x] rebuilder must check all variants
 	// - [x] compose multi-target recipe directly from the config
 	//    - [x] there should be just one invocation of bake
-	// - [ ] TODO(post-mvp) --repo-config for repo-wide config
-	// - [ ] write exact image names at the end of the build
-	//    - [ ] as plain text summary to stdout
-	//    - [ ] as JSON/YAML
+	// - [ ] (post-mvp) --repo-config for repo-wide config
+	// - [?] write exact image names at the end of the build
+	//    - [ ] (post-mvp) review if `bake --metadata-file` output is sufficient
+	// 			or some if it might need a wrapper (e.g. to match API style)
+	//    - [ ] (post-mvp) review if summary/metadata aids 'index.json'
+	//    - [x] ... as plain text summary to stdout
+	//    - [ ] (post-mvp) ... as JSON/YAML
 	//    - [ ] (post-mvp) as plain text file with custom formatting
-	//    - [ ] (post-mvp) lookup digests and include them in
+	//    - [x] (post-mvp) lookup digests and include them in
 	// - [ ] (post-mvp) define index image schema and implement it
 	// - [ ] (post-mvp) implement some usefull cheks
 	//    - [ ] presence of Dockerfile.dockerignore in the same direcory
@@ -167,7 +169,7 @@ func (f *Flags) RunBuildCmd() error {
 		RegistryAPI: &registry.Registry{},
 	}
 
-	fmt.Printf("current registry refs: %s", strings.Join(m.RegistryRefs(), ", "))
+	fmt.Printf("current registry refs: %s\n", strings.Join(m.RegistryRefs(), ", "))
 
 	rebuild, reason, err := rb.ShouldRebuild(m)
 	if err != nil {
@@ -187,7 +189,7 @@ func (f *Flags) RunBuildCmd() error {
 	}
 	fmt.Println(reason)
 
-	manifest, cleanup, err := ir.WriteManifest(stateDirPath, f.Registries...)
+	manifest, metadata, cleanup, err := ir.WriteManifest(stateDirPath, f.Registries...)
 	if err != nil {
 		return err
 	}
@@ -204,7 +206,7 @@ func (f *Flags) RunBuildCmd() error {
 		return err
 	}
 
-	bakeArgs := []string{}
+	bakeArgs := []string{"--metadata-file", metadata}
 	if f.NoCache {
 		bakeArgs = append(bakeArgs, "--no-cache")
 	}
@@ -212,10 +214,18 @@ func (f *Flags) RunBuildCmd() error {
 	if err := bx.Bake(manifest, bakeArgs...); err != nil {
 		return err
 	}
+	md, err := buildx.LoadBakeMetadata(metadata)
+	if err != nil {
+		return err
+	}
+	if err := md.ToBuildSummary(bc.Spec.Name).WriteText(os.Stdout); err != nil {
+		return err
+	}
+
 	if !f.Debug {
 		cleanup()
 	} else {
-		fmt.Printf("keeping %q for debugging\n", manifest)
+		fmt.Printf("keeping %q and %q for debugging\n", manifest, metadata)
 	}
 	return nil
 }

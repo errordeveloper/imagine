@@ -112,14 +112,14 @@ func (f *Flags) RunGenerateCmd() error {
 		return err
 	}
 
-	fmt.Printf("current registry refs: %s", strings.Join(m.RegistryRefs(), ", "))
+	fmt.Printf("current registry refs: %s\n", strings.Join(m.RegistryRefs(), ", "))
 
 	if f.Output != "" {
 		if err := m.WriteFile(f.Output); err != nil {
 			return err
 		}
 	} else {
-		manifest, _, err := ir.WriteManifest(stateDirPath, f.Registries...)
+		manifest, _, _, err := ir.WriteManifest(stateDirPath, f.Registries...)
 		if err != nil {
 			return err
 		}

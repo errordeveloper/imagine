@@ -416,13 +416,13 @@ func (r *ImagineRecipe) ToBakeManifest(registries ...string) (*BakeManifest, err
 	return manifest, nil
 }
 
-func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string) (string, func(), error) {
+func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string) (string, string, func(), error) {
 	if err := os.MkdirAll(stateDirPath, 0755); err != nil {
-		return "", func() {}, err
+		return "", "", func() {}, err
 	}
 	tempDir, err := os.MkdirTemp(stateDirPath, "build-*")
 	if err != nil {
-		return "", func() {}, err
+		return "", "", func() {}, err
 	}
 
 	cleanup := func() {
@@ -430,18 +430,19 @@ func (r *ImagineRecipe) WriteManifest(stateDirPath string, registries ...string)
 	}
 
 	manifest := filepath.Join(tempDir, fmt.Sprintf("buildx-%s.json", r.Name))
+	metadata := filepath.Join(tempDir, fmt.Sprintf("buildx-%s.metadata.json", r.Name))
 
 	m, err := r.ToBakeManifest(registries...)
 	if err != nil {
-		return "", func() {}, err
+		return "", "", func() {}, err
 	}
 
 	if err := m.WriteFile(manifest); err != nil {
 		cleanup()
-		return "", func() {}, err
+		return "", "", func() {}, err
 	}
 
-	return manifest, cleanup, nil
+	return manifest, metadata, cleanup, nil
 }
 
 func (m *BakeManifest) RegistryRefs() []string {

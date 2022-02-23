@@ -2,12 +2,14 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 )
 
 const (
-	apiVersion = "v1alpha1"
-	kind       = "ImagineBuildConfig"
+	apiVersion       = "v1alpha1"
+	buildConfigKind  = "ImagineBuildConfig"
+	buildSummaryKind = "ImagineBuildSummary"
 )
 
 type BuildConfig struct {
@@ -63,14 +65,12 @@ type BuildSummary struct {
 
 	Name string `json:"name"`
 
-	Registries []string
-	Images     []ImageSummary
+	Images []ImageSummary
 }
 
 type ImageSummary struct {
 	VarianName   *string
 	Digest       *string
-	Tag          *string
 	RegistryRefs []string
 }
 
@@ -91,4 +91,24 @@ func (i *WithBuildInstructions) DockerfilePath(workDir string) string {
 		return i.Dockerfile.Path
 	}
 	return filepath.Join(i.ContextPath(workDir), i.Dockerfile.Path)
+}
+
+func NewBuildSummary(name string) *BuildSummary {
+	return &BuildSummary{
+		APIVersion: buildSummaryKind,
+		Kind:       apiVersion,
+		Name:       name,
+	}
+}
+
+func (s *BuildSummary) WriteText(w io.Writer) error {
+	fmt.Fprintln(w, "built refs:")
+	for _, image := range s.Images {
+		for _, ref := range image.RegistryRefs {
+			if _, err := fmt.Fprintf(w, "- %s@%s\n", ref, *image.Digest); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -53,8 +53,8 @@ func (o *BuildConfig) ApplyDefaultsAndValidate() error {
 	if o.Kind == "" {
 		return fieldMustBeNonEmptyErr(".kind")
 	}
-	if o.Kind != kind {
-		return fieldValueInvalidErr(".kind", o.Kind, kind)
+	if o.Kind != buildConfigKind {
+		return fieldValueInvalidErr(".kind", o.Kind, buildConfigKind)
 	}
 
 	return o.Spec.ApplyDefaultsAndValidate()
