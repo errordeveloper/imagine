@@ -1,0 +1,13 @@
+kind: ImagineBuildConfig
+apiVersion: v1alpha1
+
+spec:
+  name: imagine-scratch-example
+  dir: ./examples
+  variants:
+  - name: a
+    with:
+      args:
+        variant: a
+      dockerfile:
+        body: "FROM scratch"
