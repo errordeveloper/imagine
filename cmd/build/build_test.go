@@ -254,7 +254,7 @@ func (h *helper) startRegistry() error {
 	}
 
 	config := &dockerContainer.Config{
-		Image:        "registry:2@sha256:9a2d4585a32de2df9aadc126708edd1da5f875093db6419d6894ddc2d1115d97",
+		Image:        "registry:2@sha256:1d2a394131562ed756a1cb9f651abdd6add67f16494826e0ec8e42727026e93b",
 		ExposedPorts: nat.PortSet{"5000/tcp": struct{}{}},
 	}
 
