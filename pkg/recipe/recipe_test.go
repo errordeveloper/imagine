@@ -478,7 +478,7 @@ func TestManifestsWithVariants(t *testing.T) {
 			  },
 			  "index-image-1": {
 				"context": "",
-				"dockerfile-inline": "# syntax = docker/dockerfile:1.3-labs\nFROM scratch\nCOPY \u003c\u003c-EOF /index.json\n{}\nEOF",
+				"dockerfile-inline": "# syntax = docker/dockerfile:1.4\nFROM scratch\nCOPY \u003c\u003c-EOF /index.json\n{}\nEOF",
 				"labels": {
 				  "com.github.errordeveloper.imagine.buildConfig.Data": "",
 				  "com.github.errordeveloper.imagine.indexSchemaVersion": "v1alpha1",

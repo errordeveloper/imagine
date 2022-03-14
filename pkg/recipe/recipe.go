@@ -259,7 +259,7 @@ func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string
 	}
 
 	dockerfileInline := []string{
-		"# syntax = docker/dockerfile:1.3-labs",
+		"# syntax = docker/dockerfile:1.4",
 		"FROM scratch",
 		"COPY <<-EOF /index.json",
 		string(data),
