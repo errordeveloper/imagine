@@ -174,4 +174,24 @@ func TestRebuilder(t *testing.T) {
 		g.Expect(rebuild).To(BeFalse())
 		g.Expect(reason).To(BeEmpty())
 	}
+
+	{
+		ir := newImagineRecipe(&git.FakeRepo{
+			IsWIPRoot: false,
+			IsDevVal:  false,
+		})
+
+		m, err := ir.ToBakeManifest()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		rb := newRebuilder(
+			"reg2.example.org/imagine/image-1:613919.16c315",
+			"reg3.example.com/imagine/image-1:613919.16c315",
+		)
+
+		rebuild, reason, err := rb.ShouldRebuild(m)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(rebuild).To(BeTrue())
+		g.Expect(reason).To(Equal("no registry specified"))
+	}
 }

@@ -14,7 +14,13 @@ type Rebuilder struct {
 }
 
 func (r *Rebuilder) ShouldRebuild(manifest *recipe.BakeManifest) (bool, string, error) {
-	for _, ref := range manifest.RegistryRefs() {
+	refs := manifest.RegistryRefs()
+
+	if len(refs) == 0 {
+		return true, "no registry specified", nil
+	}
+
+	for _, ref := range refs {
 		for _, suffix := range []string{
 			r.BranchedOffSuffix + r.WorkInProgressSuffix,
 			r.BranchedOffSuffix,
