@@ -49,3 +49,13 @@ jobs:
           name: imagine-${{ matrix.GOOS }}-${{ matrix.GOARCH }}
           path: imagine
 
+  image:
+    needs: test
+    name: Build the image
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v1
+      - uses: docker://ghcr.io/errordeveloper/imagine/imagine/imagine:2ac274f.64bc6b1-dev
+        with:
+          entrypoint: imagine
+          args: build --platform linux/amd64,linux/arm64 --config build.yaml --registry  ghcr.io/errordeveloper/imagine/imagine  --push
