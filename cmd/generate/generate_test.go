@@ -158,6 +158,11 @@ func matchFixture(g *WithT, actualOutput, expectedOutput string) {
 			// index tag changes all the time, so it needs to be igrnored
 			expectedOutputObj.Target[k].Tags = actualOutputObj.Target[k].Tags
 		}
+		replaceCheckoutPrefix(expectedOutputObj.Target[k].Dockerfile)
+		replaceCheckoutPrefix(expectedOutputObj.Target[k].Context)
+		for i := range expectedOutputObj.Target[k].Outputs {
+			replaceCheckoutPrefix(&expectedOutputObj.Target[k].Outputs[i])
+		}
 	}
 
 	actualOutputData, err = json.Marshal(actualOutputObj)
@@ -168,6 +173,14 @@ func matchFixture(g *WithT, actualOutput, expectedOutput string) {
 	g.Expect(actualOutputData).To(MatchJSON(expectedOutputData), "fixture: "+expectedOutput)
 }
 
+func replaceCheckoutPrefix(v *string) {
+	// due to imagine calling chdir, workdir is already repo root
+	wd, _ := os.Getwd()
+	if v != nil {
+		*v = strings.Replace(*v, "${CHECKOUT_PREFIX}", wd, 1)
+	}
+}
+
 type helper struct {
 	stateDir string
 }
@@ -175,7 +188,8 @@ type helper struct {
 func (h *helper) setup() error {
 	wd, _ := os.Getwd()
 	// go test runs in source dir, so we need to use
-	// top-level dir due to chdir in git.New
+	// top-level dir due to chdir in git.New, it's only later
+	// that imagine does chdir to repo root
 	h.stateDir = filepath.Join(wd, "..", "..", ".imagine")
 
 	if err := os.MkdirAll(h.stateDir, 0755); err != nil {

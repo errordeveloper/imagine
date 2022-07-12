@@ -8,8 +8,8 @@
   },
   "target": {
     "imagine-alpine-example": {
-      "context": "/Users/ilya/Code/imagine/examples/alpine",
-      "dockerfile": "/Users/ilya/Code/imagine/examples/alpine/Dockerfile",
+      "context": "${CHECKOUT_PREFIX}/examples/alpine",
+      "dockerfile": "${CHECKOUT_PREFIX}/examples/alpine/Dockerfile",
       "labels": {
         "com.github.errordeveloper.imagine.buildConfig.Data": "a2luZDogSW1hZ2luZUJ1aWxkQ29uZmlnCmFwaVZlcnNpb246IHYxYWxwaGExCgpzcGVjOgogIG5hbWU6IGltYWdpbmUtYWxwaW5lLWV4YW1wbGUKICBkaXI6IC4vZXhhbXBsZXMvYWxwaW5lCg==",
         "com.github.errordeveloper.imagine.buildConfig.TreeHash": "e4fd507c43729d067ce5f7c12ddf112df8b756a5",
