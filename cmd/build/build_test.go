@@ -3,10 +3,13 @@ package build_test
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	. "github.com/onsi/gomega"
@@ -26,6 +29,8 @@ func TestBuildCmd(t *testing.T) {
 	h := &helper{}
 
 	g.Expect(h.setup()).To(Succeed())
+
+	h.waitForRegistry(context.Background(), t.Logf)
 
 	type expectFiles map[string]struct {
 		contents string
@@ -84,7 +89,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				"test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
+				"test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:1fbb497a161411a3178ef830e8ad326af8defb2f18daec4a1648923f74bcae22",
 			},
 			fail: false,
 			err:  nil,
@@ -99,7 +104,7 @@ func TestBuildCmd(t *testing.T) {
 				"--without-tag-suffix",
 			},
 			expectRefs: map[string]string{
-				"/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:db6c90d36c7e30d2840894e035d6706a271923848c41790b82d8f40e625152a7",
+				"/test1/imagine-alpine-example:e4fd507.8ca1f3c": "sha256:1fbb497a161411a3178ef830e8ad326af8defb2f18daec4a1648923f74bcae22",
 			},
 			fail: false,
 			err:  nil,
@@ -197,6 +202,11 @@ func TestBuildCmd(t *testing.T) {
 	h.cleanup()
 }
 
+const (
+	pollingTimeout = 2 * time.Minute
+	waitPeriod     = 250 * time.Millisecond
+)
+
 type helper struct {
 	repoTopLevel, stateDir string
 	buildx                 *buildx.Buildx
@@ -242,7 +252,7 @@ func (h *helper) setup() error {
 		return err
 	}
 
-	return h.buildx.InitBuilder("", "--config="+buildkitdConfigPath)
+	return h.buildx.InitBuilder("", "--config="+buildkitdConfigPath, "--driver-opt=network=host")
 }
 
 func (h *helper) startRegistry() error {
@@ -254,37 +264,66 @@ func (h *helper) startRegistry() error {
 	}
 
 	config := &dockerContainer.Config{
-		Image:        "registry:2@sha256:1d2a394131562ed756a1cb9f651abdd6add67f16494826e0ec8e42727026e93b",
+		Image:        "registry:2@sha256:bedef0f1d248508fe0a16d2cacea1d2e68e899b2220e2258f1b604e1f327d475",
 		ExposedPorts: nat.PortSet{"5000/tcp": struct{}{}},
 	}
 
-	if _, err := docker.ImagePull(ctx, config.Image, dockerTypes.ImagePullOptions{}); err != nil {
-		return err
+	r, err := docker.ImagePull(ctx, config.Image, dockerTypes.ImagePullOptions{})
+	if err != nil {
+		return fmt.Errorf("pull failed: %w", err)
+	}
+	if _, err := io.ReadAll(r); err != nil {
+		return fmt.Errorf("pull failed: %w", err)
 	}
 
 	resp, err := docker.ContainerCreate(ctx, config, &dockerContainer.HostConfig{PublishAllPorts: true}, nil, nil, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("create failed: %w", err)
 	}
 
 	if err := docker.ContainerStart(ctx, resp.ID, dockerTypes.ContainerStartOptions{}); err != nil {
-		return err
+		return fmt.Errorf("start failed: %w", err)
 	}
 
 	h.registryContainerID = resp.ID
 
 	containerInfo, err := docker.ContainerInspect(ctx, resp.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("inspect failed: %w", err)
 	}
 
-	h.registryHost = "host.docker.internal" // TODO: this works on Docker for Desktop, check if it works in GitHub Actions
+	h.registryHost = "localhost" // TODO: make this work from containers, e.g. "host.docker.internal" works on Docker for Desktop
 	h.registryPort = containerInfo.NetworkSettings.Ports["5000/tcp"][0].HostPort
 
 	h.docker = docker
 
 	return nil
 }
+
+func (h *helper) waitForRegistry(ctx context.Context, logf func(format string, args ...interface{})) {
+	ctx, cancel := context.WithTimeout(ctx, pollingTimeout)
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			conn, err := net.Dial("tcp", h.registry())
+			if conn != nil {
+				if err := conn.Close(); err != nil {
+					logf("ignoring connection closure error: %v", err)
+				}
+			}
+			if err == nil {
+				logf("server is now listening on %q", h.registry())
+				return
+			}
+			logf("waiting for server to listen on %q (err: %v)", h.registry(), err)
+			time.Sleep(waitPeriod)
+		}
+	}
+}
+
 func (h *helper) registry() string {
 	return fmt.Sprintf("%s:%s", h.registryHost, h.registryPort)
 }
