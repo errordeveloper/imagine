@@ -57,6 +57,11 @@ jobs:
       - uses: actions/checkout@v1
       - uses: docker/setup-qemu-action@v2
       - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.08b8203-dev@sha256:64f2bd3fbb1c5568376d96e4b5a13a8a4c429c31376910bf82bc6053911d4b51
+        env:
+          ANY_REGISTRY_DISABLE: true
+          DOCKER_HUB_PUBLIC_ACCESS_ONLY: true
+          GHCR_USERNAME: $GITHUB_ACTOR
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
           entrypoint: imagine
           args: build --platform linux/amd64,linux/arm64 --config build.yaml --registry  ghcr.io/errordeveloper  --push
