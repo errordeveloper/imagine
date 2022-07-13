@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v1
-      - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.c3c997d-dev@sha256:bfac14d268f55ab7b32abd936a22c05e830224efd9b46423233c001847124708
+      - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.08b8203-dev@sha256:64f2bd3fbb1c5568376d96e4b5a13a8a4c429c31376910bf82bc6053911d4b51
         with:
           entrypoint: imagine
           args: build --platform linux/amd64,linux/arm64 --config build.yaml --registry  ghcr.io/errordeveloper  --push

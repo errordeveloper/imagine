@@ -25,6 +25,13 @@ RUN apk add --initdb --no-cache --root /out-${TARGETARCH} --arch "$(xx-info alpi
       git \
     && true
 
+
+COPY <<EOF /out-${TARGETARCH}/etc/gitconfig
+# this is to mitigate an issue on GitHub Actions (https://github.com/actions/checkout/issues/760)
+[safe]
+	directory = /github/workspace
+EOF
+
 FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} as builder
 
 ARG TARGETARCH
