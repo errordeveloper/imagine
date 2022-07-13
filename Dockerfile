@@ -16,13 +16,13 @@ ARG TARGETARCH
 
 COPY --from=xx-dist /usr/bin/xx-info /usr/local/bin/xx-info
 
-
 RUN mkdir -p /out-${TARGETARCH}/etc/apk \
   && cp -r /etc/apk/* /out-${TARGETARCH}/etc/apk/ \
   && cp /usr/share/apk/keys/$(xx-info alpine-arch)/* /out-${TARGETARCH}/etc/apk/keys/
 
 RUN apk add --initdb --no-cache --root /out-${TARGETARCH} --arch "$(xx-info alpine-arch)" \
       ca-certificates \
+      git \
     && true
 
 FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} as builder
