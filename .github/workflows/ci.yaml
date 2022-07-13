@@ -15,7 +15,7 @@ jobs:
         name: Run unit tests
         with:
           entrypoint: go
-          args: test -v ./...
+          args: test -v ./pkg/...
       - uses: docker://docker.io/library/golang:1.18.3@sha256:a452d6273ad03a47c2f29b898d6bb57630e77baf839651ef77d03e4e049c5bf3
         name: Run go vet
         with:
