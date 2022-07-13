@@ -50,6 +50,14 @@ RUN --mount=target=/src,type=bind --mount=target=/root/.cache,type=cache --mount
   CGO_ENABLED=0 GOARCH=${TARGETARCH} \
     go build -ldflags '-s -w' -o /out-${TARGETARCH}/usr/local/bin/imagine ./
 
+RUN --mount=target=/src,type=bind --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
+  CGO_ENABLED=0 GOARCH=${TARGETARCH} \
+    go test -c -ldflags '-s -w' -o /out-${TARGETARCH}/usr/local/bin/imagine.build.test ./cmd/build
+
+RUN --mount=target=/src,type=bind --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
+  CGO_ENABLED=0 GOARCH=${TARGETARCH} \
+    go test -c -ldflags '-s -w' -o /out-${TARGETARCH}/usr/local/bin/imagine.generate.test ./cmd/generate
+
 FROM --platform=$TARGETPLATFORM scratch
 
 ARG TARGETARCH
