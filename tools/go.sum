@@ -1,0 +1,4 @@
+github.com/docker/docker-credential-helpers v0.6.3 h1:zI2p9+1NQYdnG6sMU26EX4aVGlqbInSQxQXLvzJ4RPQ=
+github.com/docker/docker-credential-helpers v0.6.3/go.mod h1:WRaJzqw3CTB9bk10avuGsjVBZsD05qeibJ1/TYlvc0Y=
+github.com/errordeveloper/docker-credential-env v0.1.5 h1:Px8I9qVZnYUFohHzSt2FtZ0yjjAiCf8vNFZPz7ZqkEE=
+github.com/errordeveloper/docker-credential-env v0.1.5/go.mod h1:L6mhAX9jWe/z9AXnR4uYc+DWlo0ByfW5Z3M76eBY0G4=

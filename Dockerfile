@@ -42,11 +42,14 @@ RUN mkdir -p /out-${TARGETARCH}/usr/local/bin
 COPY --from=docker-dist /usr/local/bin /out-${TARGETARCH}/usr/local/bin
 COPY --from=buildx-dist /buildx /out-${TARGETARCH}/usr/local/libexec/docker/cli-plugins/docker-buildx
 
-WORKDIR /tmp
+WORKDIR /src/tools
 
-RUN --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
-  CGO_ENABLED=0 GOARCH=${TARGETARCH} GOPATH=/out-${TARGETARCH}/usr/local/bin \
-    go install github.com/errordeveloper/docker-credential-env@v0.1.5
+RUN --mount=target=/src --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
+  go get github.com/errordeveloper/docker-credential-env
+
+RUN --mount=target=/src --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
+  CGO_ENABLED=0 GOARCH=${TARGETARCH} \
+    go build -ldflags '-s -w' -o /out-${TARGETARCH}/usr/local/bin/docker-credential-env github.com/errordeveloper/docker-credential-env
 
 WORKDIR /src
 
