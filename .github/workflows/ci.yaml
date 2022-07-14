@@ -64,4 +64,4 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
           entrypoint: imagine
-          args: build --platform linux/amd64,linux/arm64 --config build.yaml --registry  ghcr.io/errordeveloper  --push
+          args: build --platform linux/amd64,linux/arm64 --config build.yaml --registry ghcr.io/errordeveloper --push
