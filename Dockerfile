@@ -32,6 +32,13 @@ COPY <<EOF /out-${TARGETARCH}/etc/gitconfig
 	directory = /github/workspace
 EOF
 
+COPY <<EOF /out-${TARGETARCH}/etc/docker/config.json
+{
+  "experimental": "enabled",
+  "credsStore": "env"
+}
+EOF
+
 FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} as builder
 
 ARG TARGETARCH
@@ -74,6 +81,7 @@ FROM --platform=$TARGETPLATFORM scratch
 
 ARG TARGETARCH
 
+ENV DOCKER_CONFIG=/etc/docker
 COPY --from=rootfs /out-${TARGETARCH} /
 COPY --from=builder /out-${TARGETARCH} /
 
