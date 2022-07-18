@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - uses: docker/setup-qemu-action@v2
-      - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.105664b-dev@sha256:f81070f2142ea5132d2fc192f1e5c64fd60fbcd92b027f213faf9927a5d57ec0
+      - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.72abd26-dev@sha256:ab407deb1a19ee36e64d7959e4e84d4d6dd018f3c1fdc248d79c9289c156895a
         env:
           ANY_REGISTRY_DISABLE: true
           DOCKER_HUB_PUBLIC_ACCESS_ONLY: true
