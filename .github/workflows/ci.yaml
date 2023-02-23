@@ -43,7 +43,7 @@ jobs:
           GOARCH: ${{ matrix.GOARCH }}
         with:
           entrypoint: go
-          args: build
+          args: build -buildvcs=false
       - uses: actions/upload-artifact@v2
         with:
           name: imagine-${{ matrix.GOOS }}-${{ matrix.GOARCH }}
