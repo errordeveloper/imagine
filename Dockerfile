@@ -1,9 +1,8 @@
 ARG XX_IMAGE=tonistiigi/xx@sha256:23ca08d120366b31d1d7fad29283181f063b0b43879e1f93c045ca5b548868e9
-ARG ALPINE_IMAGE=docker.io/library/alpine:3.16@sha256:686d8c9dfa6f3ccfc8230bc3178d23f84eeaf7e457f36f271ab1acc53015037c
-ARG GOLANG_IMAGE=docker.io/library/golang:1.18.3-alpine@sha256:7cc62574fcf9c5fb87ad42a9789d5539a6a085971d58ee75dd2ee146cb8a8695
-ARG DOCKER_IMAGE=docker.io/library/docker:20.10.17-dind@sha256:6dd895238f055a79a6d044f7d97b668bef0f9a840e5eed06fa01f1a6b7aed17e
-ARG BUILDX_IMAGE=docker.io/docker/buildx-bin:0.8.2@sha256:44a7217da633dd01f621ebcfe75410cd98f81edcff5b43de33eeb65582d6f055
-
+ARG ALPINE_IMAGE=docker.io/library/alpine:3.17@sha256:69665d02cb32192e52e07644d76bc6f25abeb5410edc1c7a81a10ba3f0efb90a
+ARG GOLANG_IMAGE=docker.io/library/golang:1.19-alpine@sha256:31c62d91ada60d52cd2e40e1134778d32549cd58c131b30dd41069f998dc8490
+ARG DOCKER_IMAGE=docker.io/library/docker:23.0.0-dind@sha256:210f22afb3022a5fb994eeacd18d983c9760efd6f793ee2bf3a3467aef0c583a
+ARG BUILDX_IMAGE=docker.io/docker/buildx-bin:0.10.3@sha256:62f420295e6b22901436343f743ac3d2f8b0b86917cce66c35997badff51b422
 
 FROM --platform=$BUILDPLATFORM ${XX_IMAGE} AS xx-dist
 
