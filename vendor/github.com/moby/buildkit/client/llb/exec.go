@@ -186,12 +186,19 @@ func (e *ExecOp) Marshal(ctx context.Context, c *Constraints) (digest.Digest, []
 		return "", nil, nil, nil, err
 	}
 
+	cgrpParent, err := getCgroupParent(e.base)(ctx, c)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
 	meta := &pb.Meta{
-		Args:     args,
-		Env:      env.ToArray(),
-		Cwd:      cwd,
-		User:     user,
-		Hostname: hostname,
+		Args:                      args,
+		Env:                       env.ToArray(),
+		Cwd:                       cwd,
+		User:                      user,
+		Hostname:                  hostname,
+		CgroupParent:              cgrpParent,
+		RemoveMountStubsRecursive: true,
 	}
 
 	extraHosts, err := getExtraHosts(e.base)(ctx, c)
@@ -278,6 +285,12 @@ func (e *ExecOp) Marshal(ctx context.Context, c *Constraints) (digest.Digest, []
 
 	if len(e.secrets) > 0 {
 		addCap(&e.constraints, pb.CapExecMountSecret)
+		for _, s := range e.secrets {
+			if s.IsEnv {
+				addCap(&e.constraints, pb.CapExecSecretEnv)
+				break
+			}
+		}
 	}
 
 	if len(e.ssh) > 0 {
@@ -363,18 +376,26 @@ func (e *ExecOp) Marshal(ctx context.Context, c *Constraints) (digest.Digest, []
 	}
 
 	for _, s := range e.secrets {
-		pm := &pb.Mount{
-			Dest:      s.Target,
-			MountType: pb.MountType_SECRET,
-			SecretOpt: &pb.SecretOpt{
+		if s.IsEnv {
+			peo.Secretenv = append(peo.Secretenv, &pb.SecretEnv{
 				ID:       s.ID,
-				Uid:      uint32(s.UID),
-				Gid:      uint32(s.GID),
+				Name:     s.Target,
 				Optional: s.Optional,
-				Mode:     uint32(s.Mode),
-			},
+			})
+		} else {
+			pm := &pb.Mount{
+				Dest:      s.Target,
+				MountType: pb.MountType_SECRET,
+				SecretOpt: &pb.SecretOpt{
+					ID:       s.ID,
+					Uid:      uint32(s.UID),
+					Gid:      uint32(s.GID),
+					Optional: s.Optional,
+					Mode:     uint32(s.Mode),
+				},
+			}
+			peo.Mounts = append(peo.Mounts, pm)
 		}
-		peo.Mounts = append(peo.Mounts, pm)
 	}
 
 	for _, s := range e.ssh {
@@ -554,6 +575,12 @@ func AddUlimit(name UlimitName, soft int64, hard int64) RunOption {
 	})
 }
 
+func WithCgroupParent(cp string) RunOption {
+	return runOptionFunc(func(ei *ExecInfo) {
+		ei.State = ei.State.WithCgroupParent(cp)
+	})
+}
+
 func With(so ...StateOption) RunOption {
 	return runOptionFunc(func(ei *ExecInfo) {
 		ei.State = ei.State.With(so...)
@@ -649,6 +676,7 @@ type SecretInfo struct {
 	UID      int
 	GID      int
 	Optional bool
+	IsEnv    bool
 }
 
 var SecretOptional = secretOptionFunc(func(si *SecretInfo) {
@@ -658,6 +686,13 @@ var SecretOptional = secretOptionFunc(func(si *SecretInfo) {
 func SecretID(id string) SecretOption {
 	return secretOptionFunc(func(si *SecretInfo) {
 		si.ID = id
+	})
+}
+
+// SecretAsEnv defines if the secret should be added as an environment variable
+func SecretAsEnv(v bool) SecretOption {
+	return secretOptionFunc(func(si *SecretInfo) {
+		si.IsEnv = v
 	})
 }
 

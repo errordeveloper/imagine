@@ -2,12 +2,14 @@ package store
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/containerd/containerd/platforms"
 	"github.com/docker/buildx/util/confutil"
 	"github.com/docker/buildx/util/platformutil"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type NodeGroup struct {
@@ -15,6 +17,10 @@ type NodeGroup struct {
 	Driver  string
 	Nodes   []Node
 	Dynamic bool
+
+	// skip the following fields from being saved in the store
+	DockerContext bool      `json:"-"`
+	LastActivity  time.Time `json:"-"`
 }
 
 type Node struct {
@@ -59,17 +65,42 @@ func (ng *NodeGroup) Update(name, endpoint string, platforms []string, endpoints
 		return err
 	}
 
+	var files map[string][]byte
+	if configFile != "" {
+		files, err = confutil.LoadConfigFiles(configFile)
+		if err != nil {
+			return err
+		}
+	}
+
 	if i != -1 {
 		n := ng.Nodes[i]
+		needsRestart := false
 		if endpointsSet {
 			n.Endpoint = endpoint
+			needsRestart = true
 		}
 		if len(platforms) > 0 {
 			n.Platforms = pp
 		}
 		if flags != nil {
 			n.Flags = flags
+			needsRestart = true
 		}
+		if do != nil {
+			n.DriverOpts = do
+			needsRestart = true
+		}
+		if configFile != "" {
+			for k, v := range files {
+				n.Files[k] = v
+			}
+			needsRestart = true
+		}
+		if needsRestart {
+			logrus.Warn("new settings may not be used until builder is restarted")
+		}
+
 		ng.Nodes[i] = n
 		if err := ng.validateDuplicates(endpoint, i); err != nil {
 			return err
@@ -92,14 +123,7 @@ func (ng *NodeGroup) Update(name, endpoint string, platforms []string, endpoints
 		Platforms:  pp,
 		Flags:      flags,
 		DriverOpts: do,
-	}
-
-	if configFile != "" {
-		files, err := confutil.LoadConfigFiles(configFile)
-		if err != nil {
-			return err
-		}
-		n.Files = files
+		Files:      files,
 	}
 
 	ng.Nodes = append(ng.Nodes, n)
@@ -108,6 +132,44 @@ func (ng *NodeGroup) Update(name, endpoint string, platforms []string, endpoints
 		return err
 	}
 	return nil
+}
+
+func (ng *NodeGroup) Copy() *NodeGroup {
+	nodes := make([]Node, len(ng.Nodes))
+	for i, node := range ng.Nodes {
+		nodes[i] = *node.Copy()
+	}
+	return &NodeGroup{
+		Name:    ng.Name,
+		Driver:  ng.Driver,
+		Nodes:   nodes,
+		Dynamic: ng.Dynamic,
+	}
+}
+
+func (n *Node) Copy() *Node {
+	platforms := []specs.Platform{}
+	copy(platforms, n.Platforms)
+	flags := []string{}
+	copy(flags, n.Flags)
+	driverOpts := map[string]string{}
+	for k, v := range n.DriverOpts {
+		driverOpts[k] = v
+	}
+	files := map[string][]byte{}
+	for k, v := range n.Files {
+		vv := []byte{}
+		copy(vv, v)
+		files[k] = vv
+	}
+	return &Node{
+		Name:       n.Name,
+		Endpoint:   n.Endpoint,
+		Platforms:  platforms,
+		Flags:      flags,
+		DriverOpts: driverOpts,
+		Files:      files,
+	}
 }
 
 func (ng *NodeGroup) validateDuplicates(ep string, idx int) error {

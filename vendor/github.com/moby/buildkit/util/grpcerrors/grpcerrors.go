@@ -5,8 +5,9 @@ import (
 	"errors"
 
 	"github.com/containerd/typeurl"
+	rpc "github.com/gogo/googleapis/google/rpc"
 	gogotypes "github.com/gogo/protobuf/types"
-	"github.com/golang/protobuf/proto" // nolint:staticcheck
+	"github.com/golang/protobuf/proto" //nolint:staticcheck
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/moby/buildkit/util/stack"
 	"github.com/sirupsen/logrus"
@@ -39,6 +40,14 @@ func ToGRPC(err error) error {
 		}
 		pb := st.Proto()
 		pb.Code = int32(code)
+		st = status.FromProto(pb)
+	}
+
+	// If the original error was wrapped with more context than the GRPCStatus error,
+	// copy the original message to the GRPCStatus error
+	if err.Error() != st.Message() {
+		pb := st.Proto()
+		pb.Message = err.Error()
 		st = status.FromProto(pb)
 	}
 
@@ -169,11 +178,11 @@ func FromGRPC(err error) error {
 		}
 	}
 
-	err = &grpcStatusErr{st: status.FromProto(n)}
+	err = &grpcStatusError{st: status.FromProto(n)}
 
 	for _, s := range stacks {
 		if s != nil {
-			err = stack.Wrap(err, *s)
+			err = stack.Wrap(err, s)
 		}
 	}
 
@@ -188,18 +197,32 @@ func FromGRPC(err error) error {
 	return stack.Enable(err)
 }
 
-type grpcStatusErr struct {
+func ToRPCStatus(st *spb.Status) *rpc.Status {
+	details := make([]*gogotypes.Any, len(st.Details))
+
+	for i, d := range st.Details {
+		details[i] = gogoAny(d)
+	}
+
+	return &rpc.Status{
+		Code:    int32(st.Code),
+		Message: st.Message,
+		Details: details,
+	}
+}
+
+type grpcStatusError struct {
 	st *status.Status
 }
 
-func (e *grpcStatusErr) Error() string {
+func (e *grpcStatusError) Error() string {
 	if e.st.Code() == codes.OK || e.st.Code() == codes.Unknown {
 		return e.st.Message()
 	}
 	return e.st.Code().String() + ": " + e.st.Message()
 }
 
-func (e *grpcStatusErr) GRPCStatus() *status.Status {
+func (e *grpcStatusError) GRPCStatus() *status.Status {
 	return e.st
 }
 

@@ -29,6 +29,18 @@ type Vertex interface {
 	Inputs() []Output
 }
 
+func NewConstraints(co ...ConstraintsOpt) *Constraints {
+	defaultPlatform := platforms.Normalize(platforms.DefaultSpec())
+	c := &Constraints{
+		Platform:      &defaultPlatform,
+		LocalUniqueID: identity.NewID(),
+	}
+	for _, o := range co {
+		o.SetConstraintsOption(c)
+	}
+	return c
+}
+
 func NewState(o Output) State {
 	s := State{
 		out: o,
@@ -112,18 +124,12 @@ func (s State) SetMarshalDefaults(co ...ConstraintsOpt) State {
 }
 
 func (s State) Marshal(ctx context.Context, co ...ConstraintsOpt) (*Definition, error) {
+	c := NewConstraints(append(s.opts, co...)...)
 	def := &Definition{
-		Metadata: make(map[digest.Digest]pb.OpMetadata, 0),
+		Metadata:    make(map[digest.Digest]pb.OpMetadata, 0),
+		Constraints: c,
 	}
 
-	defaultPlatform := platforms.Normalize(platforms.DefaultSpec())
-	c := &Constraints{
-		Platform:      &defaultPlatform,
-		LocalUniqueID: identity.NewID(),
-	}
-	for _, o := range append(s.opts, co...) {
-		o.SetConstraintsOption(c)
-	}
 	if s.Output() == nil || s.Output().Vertex(ctx, c) == nil {
 		return def, nil
 	}
@@ -193,10 +199,10 @@ func marshal(ctx context.Context, v Vertex, def *Definition, s *sourceMapCollect
 	if opMeta != nil {
 		def.Metadata[dgst] = mergeMetadata(def.Metadata[dgst], *opMeta)
 	}
+	s.Add(dgst, sls)
 	if _, ok := cache[dgst]; ok {
 		return def, nil
 	}
-	s.Add(dgst, sls)
 	def.Def = append(def.Def, dt)
 	cache[dgst] = struct{}{}
 	return def, nil
@@ -224,13 +230,7 @@ func (s State) WithOutput(o Output) State {
 }
 
 func (s State) WithImageConfig(c []byte) (State, error) {
-	var img struct {
-		Config struct {
-			Env        []string `json:"Env,omitempty"`
-			WorkingDir string   `json:"WorkingDir,omitempty"`
-			User       string   `json:"User,omitempty"`
-		} `json:"config,omitempty"`
-	}
+	var img ocispecs.Image
 	if err := json.Unmarshal(c, &img); err != nil {
 		return State{}, err
 	}
@@ -245,6 +245,13 @@ func (s State) WithImageConfig(c []byte) (State, error) {
 		}
 	}
 	s = s.Dir(img.Config.WorkingDir)
+	if img.Architecture != "" && img.OS != "" {
+		s = s.Platform(ocispecs.Platform{
+			OS:           img.OS,
+			Architecture: img.Architecture,
+			Variant:      img.Variant,
+		})
+	}
 	return s, nil
 }
 
@@ -401,6 +408,10 @@ func (s State) AddUlimit(name UlimitName, soft int64, hard int64) State {
 	return ulimit(name, soft, hard)(s)
 }
 
+func (s State) WithCgroupParent(cp string) State {
+	return cgroupParent(cp)(s)
+}
+
 func (s State) isFileOpCopyInput() {}
 
 type output struct {
@@ -444,6 +455,7 @@ type ConstraintsOpt interface {
 	HTTPOption
 	ImageOption
 	GitOption
+	OCILayoutOption
 }
 
 type constraintsOptFunc func(m *Constraints)
@@ -458,6 +470,10 @@ func (fn constraintsOptFunc) SetRunOption(ei *ExecInfo) {
 
 func (fn constraintsOptFunc) SetLocalOption(li *LocalInfo) {
 	li.applyConstraints(fn)
+}
+
+func (fn constraintsOptFunc) SetOCILayoutOption(oi *OCILayoutInfo) {
+	oi.applyConstraints(fn)
 }
 
 func (fn constraintsOptFunc) SetHTTPOption(hi *HTTPInfo) {
@@ -493,6 +509,10 @@ func mergeMetadata(m1, m2 pb.OpMetadata) pb.OpMetadata {
 			m1.Caps = make(map[apicaps.CapID]bool, len(m2.Caps))
 		}
 		m1.Caps[k] = true
+	}
+
+	if m2.ProgressGroup != nil {
+		m1.ProgressGroup = m2.ProgressGroup
 	}
 
 	return m1
@@ -584,6 +604,12 @@ func LocalUniqueID(v string) ConstraintsOpt {
 	})
 }
 
+func ProgressGroup(id, name string, weak bool) ConstraintsOpt {
+	return constraintsOptFunc(func(c *Constraints) {
+		c.Metadata.ProgressGroup = &pb.ProgressGroup{Id: id, Name: name, Weak: weak}
+	})
+}
+
 var (
 	LinuxAmd64   = Platform(ocispecs.Platform{OS: "linux", Architecture: "amd64"})
 	LinuxArmhf   = Platform(ocispecs.Platform{OS: "linux", Architecture: "arm", Variant: "v7"})
@@ -591,6 +617,7 @@ var (
 	LinuxArmel   = Platform(ocispecs.Platform{OS: "linux", Architecture: "arm", Variant: "v6"})
 	LinuxArm64   = Platform(ocispecs.Platform{OS: "linux", Architecture: "arm64"})
 	LinuxS390x   = Platform(ocispecs.Platform{OS: "linux", Architecture: "s390x"})
+	LinuxPpc64   = Platform(ocispecs.Platform{OS: "linux", Architecture: "ppc64"})
 	LinuxPpc64le = Platform(ocispecs.Platform{OS: "linux", Architecture: "ppc64le"})
 	Darwin       = Platform(ocispecs.Platform{OS: "darwin", Architecture: "amd64"})
 	Windows      = Platform(ocispecs.Platform{OS: "windows", Architecture: "amd64"})
@@ -598,9 +625,7 @@ var (
 
 func Require(filters ...string) ConstraintsOpt {
 	return constraintsOptFunc(func(c *Constraints) {
-		for _, f := range filters {
-			c.WorkerConstraints = append(c.WorkerConstraints, f)
-		}
+		c.WorkerConstraints = append(c.WorkerConstraints, filters...)
 	})
 }
 

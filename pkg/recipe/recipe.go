@@ -210,7 +210,12 @@ func (r *ImagineRecipe) newBakeTarget(buildInstructions *config.WithBuildInstruc
 	target := &bake.Target{
 		Context:   new(string),
 		Platforms: r.Platforms,
-		Args:      r.Args,
+		Args:      make(map[string]*string),
+		Labels:    make(map[string]*string),
+	}
+
+	for k, v := range r.Args {
+		target.Args[k] = &v
 	}
 
 	*target.Context = buildInstructions.ContextPath(r.WorkDir)
@@ -234,10 +239,11 @@ const (
 	IndexTargetNamePrefix = "index-"
 )
 
-func (r *ImagineRecipe) commonLabels() map[string]string {
-	return map[string]string{
-		schemaVersionLabel:   schemaVersion,
-		buildConfigDataLabel: r.Config.Data,
+func (r *ImagineRecipe) commonLabels() map[string]*string {
+	schemaVersion := schemaVersion
+	return map[string]*string{
+		schemaVersionLabel:   &schemaVersion,
+		buildConfigDataLabel: &r.Config.Data,
 	}
 }
 
@@ -249,7 +255,8 @@ func (r *ImagineRecipe) indexAsBakeTarget(imageName string, registries ...string
 		Labels:           r.commonLabels(),
 	}
 
-	indexTarget.Labels[indexSchemaVersionLabel] = indexSchemaVersion
+	indexTarget.Labels[indexSchemaVersionLabel] = new(string)
+	*indexTarget.Labels[indexSchemaVersionLabel] = indexSchemaVersion
 
 	index := struct{}{}
 
@@ -320,11 +327,11 @@ func (r *ImagineRecipe) buildVariantToBakeTargets(imageName, variantName string,
 
 	mainTarget.Labels = r.commonLabels()
 
-	mainTarget.Labels[buildConfigTreeHashLabel] = configTreeHash
-	mainTarget.Labels[contextTreeHashLabel] = contextTreeHash
+	mainTarget.Labels[buildConfigTreeHashLabel] = &configTreeHash
+	mainTarget.Labels[contextTreeHashLabel] = &contextTreeHash
 
 	for k, v := range buildInstructions.Labels {
-		mainTarget.Labels[k] = v
+		mainTarget.Labels[k] = &v
 	}
 
 	shouldPush := (r.Push && len(registries) != 0 && !*buildInstructions.Untagged)

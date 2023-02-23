@@ -1,8 +1,19 @@
+// Package namesgenerator generates random names.
+//
+// This package is officially "frozen" - no new additions will be accepted.
+//
+// For a long time, this package provided a lot of joy within the project, but
+// at some point the conflicts of opinion became greater than the added joy.
+//
+// At some future time, this may be replaced with something that sparks less
+// controversy, but for now it will remain as-is.
+//
+// See also https://github.com/moby/moby/pull/43210#issuecomment-1029934277
 package namesgenerator // import "github.com/docker/docker/pkg/namesgenerator"
 
 import (
-	"fmt"
 	"math/rand"
+	"strconv"
 )
 
 var (
@@ -60,8 +71,8 @@ var (
 		"hungry",
 		"infallible",
 		"inspiring",
-		"interesting",
 		"intelligent",
+		"interesting",
 		"jolly",
 		"jovial",
 		"keen",
@@ -758,9 +769,6 @@ var (
 		// Helen Brooke Taussig - American cardiologist and founder of the field of paediatric cardiology. https://en.wikipedia.org/wiki/Helen_B._Taussig
 		"taussig",
 
-		// Valentina Tereshkova is a Russian engineer, cosmonaut and politician. She was the first woman to fly to space in 1963. In 2013, at the age of 76, she offered to go on a one-way mission to Mars. https://en.wikipedia.org/wiki/Valentina_Tereshkova
-		"tereshkova",
-
 		// Nikola Tesla invented the AC electric system and every gadget ever used by a James Bond villain. https://en.wikipedia.org/wiki/Nikola_Tesla
 		"tesla",
 
@@ -840,13 +848,13 @@ var (
 // integer between 0 and 10 will be added to the end of the name, e.g `focused_turing3`
 func GetRandomName(retry int) string {
 begin:
-	name := fmt.Sprintf("%s_%s", left[rand.Intn(len(left))], right[rand.Intn(len(right))]) //nolint:gosec // G404: Use of weak random number generator (math/rand instead of crypto/rand)
+	name := left[rand.Intn(len(left))] + "_" + right[rand.Intn(len(right))] //nolint:gosec // G404: Use of weak random number generator (math/rand instead of crypto/rand)
 	if name == "boring_wozniak" /* Steve Wozniak is not boring */ {
 		goto begin
 	}
 
 	if retry > 0 {
-		name = fmt.Sprintf("%s%d", name, rand.Intn(10)) //nolint:gosec // G404: Use of weak random number generator (math/rand instead of crypto/rand)
+		name += strconv.Itoa(rand.Intn(10)) //nolint:gosec // G404: Use of weak random number generator (math/rand instead of crypto/rand)
 	}
 	return name
 }

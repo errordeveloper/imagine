@@ -8,13 +8,18 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/docker/buildx/util/resolver"
 	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/distribution/reference"
+	"github.com/moby/buildkit/util/contentutil"
+	"github.com/moby/buildkit/util/imageutil"
 	"github.com/moby/buildkit/util/tracing"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/sirupsen/logrus"
 )
 
 type Auth interface {
@@ -27,14 +32,16 @@ type Opt struct {
 }
 
 type Resolver struct {
-	auth  docker.Authorizer
-	hosts docker.RegistryHosts
+	auth   docker.Authorizer
+	hosts  docker.RegistryHosts
+	buffer contentutil.Buffer
 }
 
 func New(opt Opt) *Resolver {
 	return &Resolver{
-		auth:  docker.NewDockerAuthorizer(docker.WithAuthCreds(toCredentialsFunc(opt.Auth)), docker.WithAuthClient(http.DefaultClient)),
-		hosts: resolver.NewRegistryConfig(opt.RegistryConfig),
+		auth:   docker.NewDockerAuthorizer(docker.WithAuthCreds(toCredentialsFunc(opt.Auth)), docker.WithAuthClient(http.DefaultClient)),
+		hosts:  resolver.NewRegistryConfig(opt.RegistryConfig),
+		buffer: contentutil.NewBuffer(),
 	}
 }
 
@@ -47,14 +54,20 @@ func (r *Resolver) resolver() remotes.Resolver {
 			}
 			for i := range res {
 				res[i].Authorizer = r.auth
+				res[i].Client = tracing.DefaultClient
 			}
 			return res, nil
 		},
-		Client: tracing.DefaultClient,
 	})
 }
 
 func (r *Resolver) Resolve(ctx context.Context, in string) (string, ocispec.Descriptor, error) {
+	// discard containerd logger to avoid printing unnecessary info during image reference resolution.
+	// https://github.com/containerd/containerd/blob/1a88cf5242445657258e0c744def5017d7cfb492/remotes/docker/resolver.go#L288
+	logger := logrus.New()
+	logger.Out = io.Discard
+	ctx = log.WithLogger(ctx, logrus.NewEntry(logger))
+
 	ref, err := parseRef(in)
 	if err != nil {
 		return "", ocispec.Descriptor{}, err
@@ -148,4 +161,12 @@ func RegistryAuthForRef(ref string, a Auth) (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(buf), nil
+}
+
+func (r *Resolver) ImageConfig(ctx context.Context, in string, platform *ocispec.Platform) (digest.Digest, []byte, error) {
+	in, _, err := r.Resolve(ctx, in)
+	if err != nil {
+		return "", nil, err
+	}
+	return imageutil.Config(ctx, in, r.resolver(), r.buffer, nil, platform)
 }

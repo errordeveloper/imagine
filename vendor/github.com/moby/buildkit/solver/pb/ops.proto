@@ -17,6 +17,8 @@ message Op {
 		SourceOp source = 3;
 		FileOp file = 4;
 		BuildOp build = 5;
+		MergeOp merge = 6;
+		DiffOp diff = 7;
 	}
 	Platform platform = 10;
 	WorkerConstraints constraints = 11;
@@ -45,6 +47,7 @@ message ExecOp {
 	repeated Mount mounts = 2;
 	NetMode network = 3;
 	SecurityMode security = 4;
+	repeated SecretEnv secretenv = 5;
 }
 
 // Meta is a set of arguments for ExecOp.
@@ -59,6 +62,8 @@ message Meta {
 	repeated HostIP extraHosts = 6;
 	string hostname = 7;
 	repeated Ulimit ulimit = 9;
+	string cgroupParent = 10;
+	bool removeMountStubsRecursive = 11;
 }
 
 message HostIP {
@@ -81,6 +86,13 @@ enum NetMode {
 enum SecurityMode {
 	SANDBOX = 0;
 	INSECURE = 1; // privileged mode
+}
+
+// SecretEnv is an environment variable that is backed by a secret.
+message SecretEnv {
+	string ID = 1;
+	string name = 2;
+	bool optional = 3;
 }
 
 // Mount specifies how to mount an input Op as a filesystem.
@@ -117,7 +129,7 @@ message TmpfsOpt {
 message CacheOpt {
 	// ID is an optional namespace for the mount
 	string ID = 1;
-	// Sharing is the sharing mode for the mount 
+	// Sharing is the sharing mode for the mount
 	CacheSharingOpt sharing = 2;
 }
 
@@ -146,7 +158,7 @@ message SecretOpt {
 	bool optional = 5;
 }
 
-// SSHOpt defines options describing secret mounts
+// SSHOpt defines options describing ssh mounts
 message SSHOpt {
 	// ID of exposed ssh rule. Used for quering the value.
 	string ID = 1;
@@ -190,12 +202,14 @@ message OpMetadata {
 	// ignore_cache specifies to ignore the cache for this Op.
 	bool ignore_cache = 1;
 	// Description can be used for keeping any text fields that builder doesn't parse
-	map<string, string> description = 2; 
+	map<string, string> description = 2;
 	// index 3 reserved for WorkerConstraint in previous versions
 	// WorkerConstraint worker_constraint = 3;
 	ExportCache export_cache = 4;
-	
+
 	map<string, bool> caps = 5 [(gogoproto.castkey) = "github.com/moby/buildkit/util/apicaps.CapID", (gogoproto.nullable) = false];
+
+	ProgressGroup progress_group = 6;
 }
 
 // Source is a source mapping description for a file
@@ -211,7 +225,7 @@ message Locations {
 
 // Source info contains the shared metadata of a source mapping
 message SourceInfo {
- 	string filename = 1;
+	string filename = 1;
 	bytes data = 2;
 	Definition definition = 3;
 }
@@ -230,12 +244,18 @@ message Range {
 
 // Position is single location in a source file
 message Position {
-	int32 Line = 1;
-	int32 Character = 2;
+	int32 line = 1;
+	int32 character = 2;
 }
 
 message ExportCache {
 	bool Value = 1;
+}
+
+message ProgressGroup {
+	string id = 1;
+	string name = 2;
+	bool weak = 3;
 }
 
 message ProxyEnv {
@@ -361,4 +381,25 @@ message UserOpt {
 message NamedUserOpt {
 	string name = 1;
 	int64 input = 2 [(gogoproto.customtype) = "InputIndex", (gogoproto.nullable) = false];
+}
+
+message MergeInput {
+	int64 input = 1 [(gogoproto.customtype) = "InputIndex", (gogoproto.nullable) = false];
+}
+
+message MergeOp {
+	repeated MergeInput inputs = 1;
+}
+
+message LowerDiffInput {
+  int64 input = 1 [(gogoproto.customtype) = "InputIndex", (gogoproto.nullable) = false];
+}
+
+message UpperDiffInput {
+  int64 input = 1 [(gogoproto.customtype) = "InputIndex", (gogoproto.nullable) = false];
+}
+
+message DiffOp {
+  LowerDiffInput lower = 1;
+  UpperDiffInput upper = 2;
 }

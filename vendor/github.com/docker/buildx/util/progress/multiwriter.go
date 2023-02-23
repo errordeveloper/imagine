@@ -8,14 +8,14 @@ import (
 
 func WithPrefix(w Writer, pfx string, force bool) Writer {
 	return &prefixed{
-		main:  w,
-		pfx:   pfx,
-		force: force,
+		Writer: w,
+		pfx:    pfx,
+		force:  force,
 	}
 }
 
 type prefixed struct {
-	main  Writer
+	Writer
 	pfx   string
 	force bool
 }
@@ -24,9 +24,12 @@ func (p *prefixed) Write(v *client.SolveStatus) {
 	if p.force {
 		for _, v := range v.Vertexes {
 			v.Name = addPrefix(p.pfx, v.Name)
+			if v.ProgressGroup != nil {
+				v.ProgressGroup.Name = addPrefix(p.pfx, v.ProgressGroup.Name)
+			}
 		}
 	}
-	p.main.Write(v)
+	p.Writer.Write(v)
 }
 
 func addPrefix(pfx, name string) string {

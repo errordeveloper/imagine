@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 
+	contentapi "github.com/containerd/containerd/api/services/content/v1"
 	"github.com/containerd/containerd/defaults"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	controlapi "github.com/moby/buildkit/api/services/control"
@@ -26,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Client struct {
@@ -43,6 +45,7 @@ func New(ctx context.Context, address string, opts ...ClientOpt) (*Client, error
 	}
 	needDialer := true
 	needWithInsecure := true
+	tlsServerName := ""
 
 	var unary []grpc.UnaryClientInterceptor
 	var stream []grpc.StreamClientInterceptor
@@ -63,6 +66,7 @@ func New(ctx context.Context, address string, opts ...ClientOpt) (*Client, error
 			}
 			gopts = append(gopts, opt)
 			needWithInsecure = false
+			tlsServerName = credInfo.ServerName
 		}
 		if wt, ok := o.(*withTracer); ok {
 			customTracer = true
@@ -100,20 +104,29 @@ func New(ctx context.Context, address string, opts ...ClientOpt) (*Client, error
 		gopts = append(gopts, grpc.WithContextDialer(dialFn))
 	}
 	if needWithInsecure {
-		gopts = append(gopts, grpc.WithInsecure())
+		gopts = append(gopts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 	if address == "" {
 		address = appdefaults.Address
 	}
 
-	// grpc-go uses a slightly different naming scheme: https://github.com/grpc/grpc/blob/master/doc/naming.md
-	// This will end up setting rfc non-complient :authority header to address string (e.g. tcp://127.0.0.1:1234).
-	// So, here sets right authority header via WithAuthority DialOption.
-	addressURL, err := url.Parse(address)
-	if err != nil {
-		return nil, err
+	// Setting :authority pseudo header
+	// - HTTP/2 (RFC7540) defines :authority pseudo header includes
+	//   the authority portion of target URI but it must not include
+	//   userinfo part (i.e. url.Host).
+	//   ref: https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
+	// - However, when TLS specified, grpc-go requires it must match
+	//   with its servername specified for certificate validation.
+	authority := tlsServerName
+	if authority == "" {
+		// authority as hostname from target address
+		uri, err := url.Parse(address)
+		if err != nil {
+			return nil, err
+		}
+		authority = uri.Host
 	}
-	gopts = append(gopts, grpc.WithAuthority(addressURL.Host))
+	gopts = append(gopts, grpc.WithAuthority(authority))
 
 	unary = append(unary, grpcerrors.UnaryClientInterceptor)
 	stream = append(stream, grpcerrors.StreamClientInterceptor)
@@ -156,12 +169,16 @@ func (c *Client) setupDelegatedTracing(ctx context.Context, td TracerDelegate) e
 	return td.SetSpanExporter(ctx, e)
 }
 
-func (c *Client) controlClient() controlapi.ControlClient {
+func (c *Client) ControlClient() controlapi.ControlClient {
 	return controlapi.NewControlClient(c.conn)
 }
 
+func (c *Client) ContentClient() contentapi.ContentClient {
+	return contentapi.NewContentClient(c.conn)
+}
+
 func (c *Client) Dialer() session.Dialer {
-	return grpchijack.Dialer(c.controlClient())
+	return grpchijack.Dialer(c.ControlClient())
 }
 
 func (c *Client) Close() error {
@@ -200,7 +217,7 @@ func WithCredentials(serverName, ca, cert, key string) ClientOpt {
 }
 
 func loadCredentials(opts *withCredentials) (grpc.DialOption, error) {
-	ca, err := ioutil.ReadFile(opts.CACert)
+	ca, err := os.ReadFile(opts.CACert)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not read ca certificate")
 	}
@@ -222,7 +239,6 @@ func loadCredentials(opts *withCredentials) (grpc.DialOption, error) {
 			return nil, errors.Wrap(err, "could not read certificate/key")
 		}
 		cfg.Certificates = []tls.Certificate{cert}
-		cfg.BuildNameToCertificate()
 	}
 
 	return grpc.WithTransportCredentials(credentials.NewTLS(cfg)), nil
