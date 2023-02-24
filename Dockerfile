@@ -84,5 +84,4 @@ ENV DOCKER_CONFIG=/etc/docker
 COPY --from=rootfs /out-${TARGETARCH} /
 COPY --from=builder /out-${TARGETARCH} /
 
-USER 65534:65534
 ENTRYPOINT [ "/usr/bin/imagine" ]
