@@ -22,8 +22,8 @@ type Flags struct {
 
 	Force bool
 
-	// WriteSummary  bool
-	// SummaryFormat string
+	SummaryFormat string
+	SummaryOutput string
 }
 
 const (
@@ -57,9 +57,8 @@ func BuildCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&flags.Force, "force", false, "force rebuilding")
 
-	// cmd.Flags().BoolVar(&flags.WriteSummary, "write-summary", true, "write build summary upon success")
-
-	// cmd.Flags().StringVar(&flags.SummaryFormat, "summary-format", "TextFiles", "format of build summary (YAML, TextFiles)")
+	cmd.Flags().StringVar(&flags.SummaryFormat, "summary-format", "auto", "format of build summary as in simple 'text' format, or CSV 'lines', as well as 'json' or 'yaml'")
+	cmd.Flags().StringVar(&flags.SummaryOutput, "summary-output", "-", "write build summary to either '-' (stdout) or a given file path")
 
 	return cmd
 }
@@ -125,7 +124,8 @@ func (f *Flags) RunBuildCmd() error {
 	// 			or some if it might need a wrapper (e.g. to match API style)
 	//    - [ ] (post-mvp) review if summary/metadata aids 'index.json'
 	//    - [x] ... as plain text summary to stdout
-	//    - [ ] (post-mvp) ... as JSON/YAML
+	//    - [x] (post-mvp) ... as JSON/YAML
+	//    - [x] (post-mvp) as plain text file with basic CSV formatting
 	//    - [ ] (post-mvp) as plain text file with custom formatting
 	//    - [x] (post-mvp) lookup digests and include them in
 	// - [ ] (post-mvp) define index image schema and implement it
@@ -218,7 +218,41 @@ func (f *Flags) RunBuildCmd() error {
 	if err != nil {
 		return err
 	}
-	if err := md.ToBuildSummary(bc.Spec.Name).WriteText(os.Stdout); err != nil {
+
+	summariser := md.ToBuildSummary(bc.Spec.Name)
+
+	summaryOutput := os.Stdout
+	if f.SummaryOutput != "-" {
+		summaryOutput, err = os.Create(f.SummaryOutput)
+		if err != nil {
+			return err
+		}
+		defer summaryOutput.Close()
+	}
+
+	if f.SummaryFormat == "auto" {
+		switch ext := filepath.Ext(f.SummaryOutput); ext {
+		case ".json", ".yaml", ".yml":
+			f.SummaryFormat = strings.TrimPrefix(ext, ".")
+		default:
+			f.SummaryFormat = "text"
+		}
+	}
+
+	switch f.SummaryFormat {
+	case "text":
+		err = summariser.WriteText(summaryOutput)
+	case "lines":
+		err = summariser.WriteLines(summaryOutput)
+	case "json":
+		err = summariser.WriteJSON(summaryOutput)
+	case "yaml", "yml":
+		err = summariser.WriteYAML(summaryOutput)
+	default:
+		// TODO: check this early
+		err = fmt.Errorf("unknown summary format %q", f.SummaryFormat)
+	}
+	if err != nil {
 		return err
 	}
 
