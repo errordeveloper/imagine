@@ -58,7 +58,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: docker/setup-qemu-action@v2
-      - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.583d391-dev@sha256:ed17a1064d7c650ca0375dfe96af57cb8a514343d3ccdd539dc957b1f12697dd
+      - uses: docker://ghcr.io/errordeveloper/imagine:2ac274f.8fed464-dev@sha256:fb1b83b0b83701990dbf9449058c7ad611e70ec15cb42bb394260a71daeb391f
         env:
           ANY_REGISTRY_DISABLE: true
           DOCKER_HUB_PUBLIC_ACCESS_ONLY: true
