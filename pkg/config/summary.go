@@ -22,13 +22,18 @@ func (s *BuildSummary) WriteText(w io.Writer) error {
 		return err
 	}
 	for _, variant := range s.Variants {
-		if variant.Name == nil {
-			_, err = fmt.Fprintf(w, "%s:\n", s.Name)
-		} else {
+		if variant.Name != nil && s.Name != *variant.Name {
 			_, err = fmt.Fprintf(w, "%s (%s):\n", s.Name, *variant.Name)
+		} else {
+			_, err = fmt.Fprintf(w, "%s:\n", s.Name)
 		}
 		if err != nil {
 			return err
+		}
+		if len(variant.RegistryRefs) == 0 {
+			if _, err = fmt.Fprintf(w, "- %s\n", *variant.Digest); err != nil {
+				return err
+			}
 		}
 		for _, ref := range variant.RegistryRefs {
 			if _, err = fmt.Fprintf(w, "- %s@%s\n", ref, *variant.Digest); err != nil {
@@ -42,11 +47,21 @@ func (s *BuildSummary) WriteText(w io.Writer) error {
 func (s *BuildSummary) WriteLines(w io.Writer) error {
 	var err error
 	for _, variant := range s.Variants {
-		for _, ref := range variant.RegistryRefs {
-			if variant.Name == nil {
-				_, err = fmt.Fprintf(w, "%s,,%s@%s\n", s.Name, ref, *variant.Digest)
+		if len(variant.RegistryRefs) == 0 {
+			if variant.Name != nil && s.Name != *variant.Name {
+				_, err = fmt.Fprintf(w, "%s,%s,%s\n", s.Name, *variant.Name, *variant.Digest)
 			} else {
+				_, err = fmt.Fprintf(w, "%s,,%s\n", s.Name, *variant.Digest)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		for _, ref := range variant.RegistryRefs {
+			if variant.Name != nil && s.Name != *variant.Name {
 				_, err = fmt.Fprintf(w, "%s,%s,%s@%s\n", s.Name, *variant.Name, ref, *variant.Digest)
+			} else {
+				_, err = fmt.Fprintf(w, "%s,,%s@%s\n", s.Name, ref, *variant.Digest)
 			}
 			if err != nil {
 				return err

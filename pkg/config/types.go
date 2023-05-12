@@ -64,13 +64,13 @@ type BuildSummary struct {
 
 	Name string `json:"name"`
 
-	Variants []VariantSummary `json:"images"`
+	Variants []VariantSummary `json:"images,omitempty"`
 }
 
 type VariantSummary struct {
 	Name         *string  `json:"name"`
 	Digest       *string  `json:"digest"`
-	RegistryRefs []string `json:"registryRefs"`
+	RegistryRefs []string `json:"registryRefs,omitempty"`
 }
 
 func (s Secret) String() string {

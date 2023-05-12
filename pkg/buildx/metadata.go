@@ -35,7 +35,9 @@ func (m *BakeMetadata) ToBuildSummary(name string) *config.BuildSummary {
 		i := config.VariantSummary{
 			Digest: new(string),
 		}
-		i.RegistryRefs = strings.Split(v.RegistryRefs, ",")
+		if v.RegistryRefs != "" {
+			i.RegistryRefs = strings.Split(v.RegistryRefs, ",")
+		}
 		i.Digest = &v.Digest
 		if variantName := strings.TrimPrefix(k, name+"-"); variantName != "" {
 			i.Name = &variantName
